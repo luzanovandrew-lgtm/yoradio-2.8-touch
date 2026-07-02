@@ -48,7 +48,7 @@ class Display {
     ScrollWidget *_meta, *_title1, *_plcurrent, *_weather, *_title2;
     PlayListWidget *_plwidget;
     BitrateWidget *_fullbitrate;
-    FillWidget *_metabackground, *_plbackground;
+    FillWidget *_metabackground, *_plbackground, *_titleline;
     SliderWidget *_volbar, *_heapbar;
     Pager *_pager;
     Page *_footer;
@@ -73,6 +73,7 @@ class Display {
     void _bootScreen();
     void _layoutChange(bool played);
     void _setRSSI(int rssi);
+    void _drawWeatherIcon();
 };
 
 #else

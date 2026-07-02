@@ -23,6 +23,12 @@
 #ifndef TS_STEPS
   #define TS_STEPS              40
 #endif
+#ifndef TS_DOUBLE_TAP_MS
+  #define TS_DOUBLE_TAP_MS      300
+#endif
+#ifndef TS_DOUBLE_TAP_MOVE
+  #define TS_DOUBLE_TAP_MOVE    24
+#endif
 
 #if TS_MODEL==TS_MODEL_XPT2046
   #ifdef TS_SPIPINS
@@ -154,8 +160,16 @@ void TouchScreen::loop(){
   uint16_t rawX = 0, rawY = 0;
   static bool wastouched = true;
   static uint32_t touchLongPress;
+  static uint32_t pendingTapTicks = 0;
   static tsDirection_e direct;
   static uint16_t touchVol, touchStation;
+  static uint16_t tapStartX, tapStartY;
+  static uint16_t lastTouchX = 0, lastTouchY = 0;
+  static uint16_t pendingTapX, pendingTapY;
+  if (!wastouched && pendingTapTicks > 0 && (millis() - pendingTapTicks) > TS_DOUBLE_TAP_MS) {
+    pendingTapTicks = 0;
+    onBtnClick(EVT_BTNCENTER);
+  }
   if (!_checklpdelay(20, _touchdelay)) return;
 #if TS_MODEL==TS_MODEL_GT911
   ts.read();
@@ -185,9 +199,13 @@ void TouchScreen::loop(){
     touchX = rotated.x;
     touchY = rotated.y;
   #endif
+    lastTouchX = touchX;
+    lastTouchY = touchY;
   if (!wastouched) { /*     START TOUCH     */
       _oldTouchX = touchX;
       _oldTouchY = touchY;
+      tapStartX = touchX;
+      tapStartY = touchY;
       touchVol = touchX;
       touchStation = touchY;
       direct = TDS_REQUEST;
@@ -215,7 +233,7 @@ void TouchScreen::loop(){
               int16_t yDelta = map(abs(touchStation - touchY), 0, _height, 0, TS_STEPS);
               display.putRequest(NEWMODE, STATIONS);
               if (yDelta>1) {
-                controlsEvent((touchStation - touchY)<0);
+                controlsEvent((touchStation - touchY)>0);
                 touchStation = touchY;
               }
             }
@@ -236,8 +254,26 @@ void TouchScreen::loop(){
       if (direct == TDS_REQUEST) {
         uint32_t pressTicks = millis()-touchLongPress;
         if( pressTicks < BTN_PRESS_TICKS*2){
-          if(pressTicks > 50) onBtnClick(EVT_BTNCENTER);
+          bool tapWithoutMove = abs((int)lastTouchX - (int)tapStartX) < TS_DOUBLE_TAP_MOVE &&
+                                abs((int)lastTouchY - (int)tapStartY) < TS_DOUBLE_TAP_MOVE;
+          if(pressTicks > 50 && tapWithoutMove) {
+            bool isDoubleTap = pendingTapTicks > 0 &&
+                               (millis() - pendingTapTicks) <= TS_DOUBLE_TAP_MS &&
+                               abs((int)lastTouchX - (int)pendingTapX) < TS_DOUBLE_TAP_MOVE &&
+                               abs((int)lastTouchY - (int)pendingTapY) < TS_DOUBLE_TAP_MOVE;
+            if (isDoubleTap) {
+              pendingTapTicks = 0;
+              config.changeMode();
+            } else {
+              pendingTapTicks = millis();
+              pendingTapX = lastTouchX;
+              pendingTapY = lastTouchY;
+            }
+          } else {
+            pendingTapTicks = 0;
+          }
         }else{
+          pendingTapTicks = 0;
           display.putRequest(NEWMODE, display.mode() == PLAYER ? STATIONS : PLAYER);
         }
       }

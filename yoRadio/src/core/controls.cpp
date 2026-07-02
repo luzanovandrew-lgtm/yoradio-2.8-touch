@@ -73,14 +73,14 @@ decode_results irResults;
 #if ENC_BTNL!=255
 void IRAM_ATTR readEncoderISR()
 {
-  if((SDC_CS==255 && display.mode()==LOST) || display.mode()==UPDATING) return;
+  if((!(SDC_CS!=255 || SDMMC_INTERNAL) && display.mode()==LOST) || display.mode()==UPDATING) return;
   encoder.readEncoder_ISR();
 }
 #endif
 #if ENC2_BTNL!=255
 void IRAM_ATTR readEncoder2ISR()
 {
-  if((SDC_CS==255 && display.mode()==LOST) || display.mode()==UPDATING) return;
+  if((!(SDC_CS!=255 || SDMMC_INTERNAL) && display.mode()==LOST) || display.mode()==UPDATING) return;
   encoder2.readEncoder_ISR();
 }
 #endif
@@ -136,7 +136,7 @@ void initControls() {
 
 void loopControls() {
   if(display.mode()==UPDATING || display.mode()==SDCHANGE) return;
-  if(SDC_CS==255 && display.mode()==LOST) return;
+  if(!(SDC_CS!=255 || SDMMC_INTERNAL) && display.mode()==LOST) return;
   if(ctrls_on_loop) ctrls_on_loop();
 #if ENC_BTNL!=255
   encoder1Loop();

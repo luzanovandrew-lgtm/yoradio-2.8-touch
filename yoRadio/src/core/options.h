@@ -444,8 +444,14 @@ The connection tables are located here https://github.com/e2002/yoradio#connecti
 #ifndef COLOR_VU_MAX
   #define COLOR_VU_MAX            231, 211,  90
 #endif
+#ifndef COLOR_VU_MID
+  #define COLOR_VU_MID            255, 150,   0
+#endif
 #ifndef COLOR_VU_MIN
   #define COLOR_VU_MIN            123, 125, 123
+#endif
+#ifndef COLOR_VU_FRAME
+  #define COLOR_VU_FRAME          255, 255, 255
 #endif
 #ifndef COLOR_CLOCK
   #define COLOR_CLOCK             231, 211,  90

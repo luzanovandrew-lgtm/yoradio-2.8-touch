@@ -358,10 +358,12 @@ VuWidget::~VuWidget() {
   if(_canvas) free(_canvas);
 }
 
-void VuWidget::init(WidgetConfig wconf, VUBandsConfig bands, uint16_t vumaxcolor, uint16_t vumincolor, uint16_t bgcolor) {
+void VuWidget::init(WidgetConfig wconf, VUBandsConfig bands, uint16_t vumaxcolor, uint16_t vumidcolor, uint16_t vumincolor, uint16_t vuframecolor, uint16_t bgcolor) {
   Widget::init(wconf, bgcolor, bgcolor);
   _vumaxcolor = vumaxcolor;
+  _vumidcolor = vumidcolor;
   _vumincolor = vumincolor;
+  _vuframecolor = vuframecolor;
   _bands = bands;
   _canvas = new Canvas(_bands.width * 2 + _bands.space, _bands.height);
 }
@@ -400,36 +402,38 @@ void VuWidget::_draw(){
   for(int i=0; i<dimension; i++){
     if(i%(dimension/_bands.perheight)==0){
       if(_config.align){
-        #ifndef BOOMBOX_STYLE
-          bandColor = (i>_bands.width-(_bands.width/_bands.perheight)*4)?_vumaxcolor:_vumincolor;
-          _canvas->fillRect(i, 0, h, _bands.height, bandColor);
-          _canvas->fillRect(i + _bands.width + _bands.space, 0, h, _bands.height, bandColor);
-        #else
-          bandColor = (i>(_bands.width/_bands.perheight))?_vumincolor:_vumaxcolor;
-          _canvas->fillRect(i, 0, h, _bands.height, bandColor);
-          bandColor = (i>_bands.width-(_bands.width/_bands.perheight)*3)?_vumaxcolor:_vumincolor;
-          _canvas->fillRect(i + _bands.width + _bands.space, 0, h, _bands.height, bandColor);
-        #endif
+        uint8_t bandIndex = i / (_bands.width / _bands.perheight);
+        uint8_t bandCount = _bands.perheight;
+        if (bandIndex >= bandCount) bandIndex = bandCount - 1;
+        uint8_t leftBandIndex = bandCount - 1 - bandIndex;
+        uint16_t leftBandColor = _vumidcolor;
+        uint16_t rightBandColor = _vumidcolor;
+        if (leftBandIndex < bandCount / 2) leftBandColor = _vumincolor;
+        if (leftBandIndex >= bandCount - 3) leftBandColor = _vumaxcolor;
+        if (bandIndex < bandCount / 2) rightBandColor = _vumincolor;
+        if (bandIndex >= bandCount - 3) rightBandColor = _vumaxcolor;
+        _canvas->fillRect(i, 0, h, _bands.height, leftBandColor);
+        _canvas->fillRect(i + _bands.width + _bands.space, 0, h, _bands.height, rightBandColor);
       }else{
-        bandColor = (i<(_bands.height/_bands.perheight)*3)?_vumaxcolor:_vumincolor;
-        _canvas->fillRect(0, i, _bands.width, h, bandColor);
-        _canvas->fillRect(_bands.width + _bands.space, i, _bands.width, h, bandColor);
+        uint8_t bandIndex = i / (_bands.height / _bands.perheight);
+        uint8_t bandCount = _bands.perheight;
+        bandColor = _vumidcolor;
+        if (bandIndex < 3) bandColor = _vumaxcolor;
+        else if (bandIndex >= bandCount / 2) bandColor = _vumincolor;
+        _canvas->drawRect(0, i, _bands.width, h, _vuframecolor);
+        _canvas->fillRect(1, i + 1, _bands.width - 2, h - 2, bandColor);
+        _canvas->drawRect(_bands.width + _bands.space, i, _bands.width, h, _vuframecolor);
+        _canvas->fillRect(_bands.width + _bands.space + 1, i + 1, _bands.width - 2, h - 2, bandColor);
       }
     }
   }
   if(_config.align){
-    #ifndef BOOMBOX_STYLE
-      _canvas->fillRect(_bands.width-measL, 0, measL, _bands.width, _bgcolor);
-      _canvas->fillRect(_bands.width * 2 + _bands.space - measR, 0, measR, _bands.width, _bgcolor);
-      dsp.drawRGBBitmap(_config.left, _config.top, _canvas->getBuffer(), _bands.width * 2 + _bands.space, _bands.height);
-    #else
-      _canvas->fillRect(0, 0, _bands.width-(_bands.width-measL), _bands.width, _bgcolor);
-      _canvas->fillRect(_bands.width * 2 + _bands.space - measR, 0, measR, _bands.width, _bgcolor);
-      dsp.startWrite();
-      dsp.setAddrWindow(_config.left, _config.top, _bands.width * 2 + _bands.space, _bands.height);
-      dsp.writePixels((uint16_t*)_canvas->getBuffer(), (_bands.width * 2 + _bands.space)*_bands.height);
-      dsp.endWrite();
-    #endif
+    _canvas->fillRect(0, 0, measL, _bands.height, _bgcolor);
+    _canvas->fillRect(_bands.width * 2 + _bands.space - measR, 0, measR, _bands.height, _bgcolor);
+    dsp.startWrite();
+    dsp.setAddrWindow(_config.left, _config.top, _bands.width * 2 + _bands.space, _bands.height);
+    dsp.writePixels((uint16_t*)_canvas->getBuffer(), (_bands.width * 2 + _bands.space)*_bands.height);
+    dsp.endWrite();
   }else{
     _canvas->fillRect(0, 0, _bands.width, measL, _bgcolor);
     _canvas->fillRect(_bands.width + _bands.space, 0, _bands.width, measR, _bgcolor);
@@ -449,7 +453,7 @@ void VuWidget::_clear(){
 }
 #else // DSP_LCD
 VuWidget::~VuWidget() { }
-void VuWidget::init(WidgetConfig wconf, VUBandsConfig bands, uint16_t vumaxcolor, uint16_t vumincolor, uint16_t bgcolor) {
+void VuWidget::init(WidgetConfig wconf, VUBandsConfig bands, uint16_t vumaxcolor, uint16_t vumidcolor, uint16_t vumincolor, uint16_t vuframecolor, uint16_t bgcolor) {
   Widget::init(wconf, bgcolor, bgcolor);
 }
 void VuWidget::_draw(){ }

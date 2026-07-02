@@ -339,7 +339,9 @@ void Config::loadTheme(){
   theme.div           = color565(COLOR_DIVIDER);
   theme.weather       = color565(COLOR_WEATHER);
   theme.vumax         = color565(COLOR_VU_MAX);
+  theme.vumid         = color565(COLOR_VU_MID);
   theme.vumin         = color565(COLOR_VU_MIN);
+  theme.vuframe       = color565(COLOR_VU_FRAME);
   theme.clock         = color565(COLOR_CLOCK);
   theme.clockbg       = color565(COLOR_CLOCK_BG);
   theme.seconds       = color565(COLOR_SECONDS);

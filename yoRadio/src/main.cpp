@@ -84,10 +84,10 @@ void setup() {
     while(!display.ready()) delay(10);
     return;
   }
-  if(SDC_CS!=255) {
+  #ifdef USE_SD
     display.putRequest(WAITFORSD, 0);
     Serial.print("##[BOOT]#\tSD search\t");
-  }
+  #endif
   config.initPlaylistMode();
   netserver.begin();
   telnet.begin();
