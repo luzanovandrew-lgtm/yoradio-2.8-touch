@@ -317,6 +317,7 @@ void Display::_start() {
   _volume();
   _station();
   _time(false);
+  _drawWeatherIcon();
   _bootStep = 2;
   pm.on_display_player();
 }
@@ -356,6 +357,7 @@ void Display::_swichMode(displayMode_e newmode) {
     _nums->setText("");
     config.isScreensaver = false;
     _pager->setPage( pages[PG_PLAYER]);
+    _drawWeatherIcon();
     config.setDspOn(config.store.dspon, false);
     pm.on_display_player();
   }
@@ -472,8 +474,8 @@ void Display::loop() {
             if(_mode==INFO)     nextion.rssi();
           #endif*/
           break;
-        case NEWTITLE: _title(); break;
-        case NEWSTATION: _station(); break;
+        case NEWTITLE: _title(); _drawWeatherIcon(); break;
+        case NEWSTATION: _station(); _drawWeatherIcon(); break;
         case NEXTSTATION: _drawNextStationNum(request.payload); break;
         case DRAWPLAYLIST: _drawPlaylist(); break;
         case DRAWVOL: _volume(); break;

@@ -40,7 +40,7 @@
   #include "../GT911_Touchscreen/TAMC_GT911.h"
   TAMC_GT911 ts = TAMC_GT911(TS_SDA, TS_SCL, TS_INT, TS_RST, 0, 0);
 #elif TS_MODEL==TS_MODEL_FT6336
-  TwoWire TSWire = TwoWire(0);
+  TwoWire& TSWire = Wire;
 #endif
 
 struct TouchPoint {
