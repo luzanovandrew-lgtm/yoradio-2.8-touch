@@ -24,7 +24,7 @@
 #include <ArduinoOTA.h>
 #endif
 
-#if DSP_HSPI || TS_HSPI || VS_HSPI
+#if DSP_HSPI || VS_HSPI || DSP_CUSTOM_SPI
 SPIClass  SPI2(HSPI);
 #endif
 

@@ -6,6 +6,7 @@
 #include "controls.h"
 #include "display.h"
 #include "player.h"
+#include <Wire.h>
 
 #ifndef TS_X_MIN
   #define TS_X_MIN              400
@@ -29,11 +30,53 @@
   #endif
   #include <XPT2046_Touchscreen.h>
   XPT2046_Touchscreen ts(TS_CS);
-  typedef TS_Point TSPoint;
 #elif TS_MODEL==TS_MODEL_GT911
   #include "../GT911_Touchscreen/TAMC_GT911.h"
   TAMC_GT911 ts = TAMC_GT911(TS_SDA, TS_SCL, TS_INT, TS_RST, 0, 0);
-  typedef TP_Point TSPoint;
+#elif TS_MODEL==TS_MODEL_FT6336
+  TwoWire TSWire = TwoWire(0);
+#endif
+
+struct TouchPoint {
+  uint16_t x;
+  uint16_t y;
+};
+
+#if TS_MODEL==TS_MODEL_FT6336
+static bool ft6336ReadBytes(uint8_t reg, uint8_t* data, size_t len) {
+  TSWire.beginTransmission(TS_ADDR);
+  TSWire.write(reg);
+  if (TSWire.endTransmission(false) != 0) return false;
+  size_t got = TSWire.requestFrom((uint8_t)TS_ADDR, (uint8_t)len);
+  if (got != len) return false;
+  for (size_t i = 0; i < len; ++i) data[i] = TSWire.read();
+  return true;
+}
+
+static bool ft6336Touched() {
+  uint8_t touches = 0;
+  return ft6336ReadBytes(0x02, &touches, 1) && ((touches & 0x0F) > 0);
+}
+
+static bool ft6336ReadPoint(TouchPoint &point) {
+  uint8_t data[4];
+  if (!ft6336ReadBytes(0x03, data, sizeof(data))) return false;
+  point.x = ((data[0] & 0x0F) << 8) | data[1];
+  point.y = ((data[2] & 0x0F) << 8) | data[3];
+  return true;
+}
+
+static TouchPoint ft6336RotatePoint(const TouchPoint &point, uint16_t width, uint16_t height, bool flipped) {
+  TouchPoint out;
+  if (flipped) {
+    out.x = width - point.y;
+    out.y = point.x;
+  } else {
+    out.x = point.y;
+    out.y = height - point.x;
+  }
+  return out;
+}
 #endif
 
 void TouchScreen::init(uint16_t w, uint16_t h){
@@ -54,6 +97,19 @@ void TouchScreen::init(uint16_t w, uint16_t h){
 #if TS_MODEL==TS_MODEL_GT911
   ts.begin();
   ts.setRotation(config.store.fliptouch?0:2);
+#endif
+#if TS_MODEL==TS_MODEL_FT6336
+  TSWire.begin(TS_SDA, TS_SCL);
+  if (TS_RST != -1) {
+    pinMode(TS_RST, OUTPUT);
+    digitalWrite(TS_RST, LOW);
+    delay(10);
+    digitalWrite(TS_RST, HIGH);
+    delay(50);
+  }
+  if (TS_INT != 255) {
+    pinMode(TS_INT, INPUT);
+  }
 #endif
   _width  = w;
   _height = h;
@@ -95,6 +151,7 @@ void TouchScreen::flip(){
 
 void TouchScreen::loop(){
   uint16_t touchX, touchY;
+  uint16_t rawX = 0, rawY = 0;
   static bool wastouched = true;
   static uint32_t touchLongPress;
   static tsDirection_e direct;
@@ -106,13 +163,27 @@ void TouchScreen::loop(){
   bool istouched = _istouched();
   if(istouched){
   #if TS_MODEL==TS_MODEL_XPT2046
-    TSPoint p = ts.getPoint();
-    touchX = map(p.x, TS_X_MIN, TS_X_MAX, 0, _width);
-    touchY = map(p.y, TS_Y_MIN, TS_Y_MAX, 0, _height);
+    TS_Point p = ts.getPoint();
+    rawX = p.x;
+    rawY = p.y;
+    touchX = map(rawX, TS_X_MIN, TS_X_MAX, 0, _width);
+    touchY = map(rawY, TS_Y_MIN, TS_Y_MAX, 0, _height);
   #elif TS_MODEL==TS_MODEL_GT911
-    TSPoint p = ts.points[0];
-    touchX = p.x;
-    touchY = p.y;
+    rawX = ts.points[0].x;
+    rawY = ts.points[0].y;
+    touchX = rawX;
+    touchY = rawY;
+  #elif TS_MODEL==TS_MODEL_FT6336
+    TouchPoint p;
+    if (!ft6336ReadPoint(p)) {
+      wastouched = false;
+      return;
+    }
+    rawX = p.x;
+    rawY = p.y;
+    TouchPoint rotated = ft6336RotatePoint(p, _width, _height, config.store.fliptouch);
+    touchX = rotated.x;
+    touchY = rotated.y;
   #endif
   if (!wastouched) { /*     START TOUCH     */
       _oldTouchX = touchX;
@@ -156,9 +227,9 @@ void TouchScreen::loop(){
     }
     if (config.store.dbgtouch) {
       Serial.print(", x = ");
-      Serial.print(p.x);
+      Serial.print(rawX);
       Serial.print(", y = ");
-      Serial.println(p.y);
+      Serial.println(rawY);
     }
   }else{
     if (wastouched) {/*     END TOUCH     */
@@ -190,6 +261,8 @@ bool TouchScreen::_istouched(){
   return ts.touched();
 #elif TS_MODEL==TS_MODEL_GT911
   return ts.isTouched;
+#elif TS_MODEL==TS_MODEL_FT6336
+  return ft6336Touched();
 #endif
 }
 

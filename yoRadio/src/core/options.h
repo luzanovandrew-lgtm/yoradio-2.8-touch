@@ -63,6 +63,11 @@ The connection tables are located here https://github.com/e2002/yoradio#connecti
 #ifndef DSP_HSPI
   #define DSP_HSPI   false      // use HSPI for displays (miso=12, mosi=13, clk=14) instead of VSPI (by default)
 #endif
+#if defined(DSP_SPIPINS)
+  #define DSP_CUSTOM_SPI  true
+#else
+  #define DSP_CUSTOM_SPI  false
+#endif
 #ifndef LED_INVERT
   #define LED_INVERT   false      // invert onboard LED?
 #endif
@@ -211,6 +216,7 @@ The connection tables are located here https://github.com/e2002/yoradio#connecti
 #define TS_MODEL_UNDEFINED      0
 #define TS_MODEL_XPT2046        1
 #define TS_MODEL_GT911          2
+#define TS_MODEL_FT6336         3
 
 #ifndef TS_MODEL
   #define TS_MODEL              TS_MODEL_UNDEFINED
@@ -230,6 +236,9 @@ The connection tables are located here https://github.com/e2002/yoradio#connecti
 #endif
 #ifndef TS_RST
   #define TS_RST                25
+#endif
+#ifndef TS_ADDR
+  #define TS_ADDR               0x38
 #endif
 
 #ifndef TS_HSPI
@@ -330,6 +339,12 @@ The connection tables are located here https://github.com/e2002/yoradio#connecti
 #endif
 #ifndef DSP_INVERT_TITLE
   #define DSP_INVERT_TITLE  true   // Invert title colors for displays ?
+#endif
+#ifndef DEFAULT_FLIPSCREEN
+  #define DEFAULT_FLIPSCREEN false
+#endif
+#ifndef DEFAULT_INVERTDISPLAY
+  #define DEFAULT_INVERTDISPLAY false
 #endif
 #ifndef EXT_WEATHER
   #define EXT_WEATHER       true   // Extended weather

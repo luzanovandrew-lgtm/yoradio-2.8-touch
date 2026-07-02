@@ -485,9 +485,9 @@ void Config::resetSystem(const char *val, uint8_t clientId){
     return;
   }
   if (strcmp(val, "screen") == 0) {
-    saveValue(&store.flipscreen, false, false);
+    saveValue(&store.flipscreen, DEFAULT_FLIPSCREEN, false);
     display.flip();
-    saveValue(&store.invertdisplay, false, false);
+    saveValue(&store.invertdisplay, DEFAULT_INVERTDISPLAY, false);
     display.invert();
     saveValue(&store.dspon, true, false);
     store.brightness = 100;
@@ -565,8 +565,8 @@ void Config::setDefaults() {
 
   store.vumeter=false;
   store.softapdelay=0;
-  store.flipscreen=false;
-  store.invertdisplay=false;
+  store.flipscreen=DEFAULT_FLIPSCREEN;
+  store.invertdisplay=DEFAULT_INVERTDISPLAY;
   store.numplaylist=false;
   store.fliptouch=false;
   store.dbgtouch=false;
