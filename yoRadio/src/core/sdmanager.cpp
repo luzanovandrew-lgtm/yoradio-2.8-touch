@@ -1,20 +1,23 @@
 #include "options.h"
-#if SDC_CS!=255
+#ifdef USE_SD
 #include <Arduino.h>
-#include <SPI.h>
-#include <SD.h>
-#include "vfs_api.h"
-#include "sd_diskio.h"
-//#define USE_SD
 #include "config.h"
 #include "sdmanager.h"
 #include "display.h"
 #include "player.h"
 
+#if SDMMC_INTERNAL
+  #include <SD_MMC.h>
+#else
+  #include <SPI.h>
+  #include <SD.h>
+  #include "sd_diskio.h"
+#endif
+
 #if defined(SD_SPIPINS) || SD_HSPI
 SPIClass  SDSPI(HSPI);
 #define SDREALSPI SDSPI
-#else
+#elif !SDMMC_INTERNAL
   #define SDREALSPI SPI
 #endif
 
@@ -22,34 +25,76 @@ SPIClass  SDSPI(HSPI);
   #define SDSPISPEED 20000000
 #endif
 
-SDManager sdman(FSImplPtr(new VFSImpl()));
+SDManager sdman;
+
+FS* SDManager::filesystem() {
+#if SDMMC_INTERNAL
+  return &SD_MMC;
+#else
+  return &SD;
+#endif
+}
 
 bool SDManager::start(){
-  ready = begin(SDC_CS, SDREALSPI, SDSPISPEED);
+#if SDMMC_INTERNAL
+  if (SDMMC_1BIT) {
+    SD_MMC.setPins(SDC_CLK, SDC_CMD, SDC_D0);
+  } else {
+    SD_MMC.setPins(SDC_CLK, SDC_CMD, SDC_D0, SDC_D1, SDC_D2, SDC_D3);
+  }
+  ready = SD_MMC.begin("/sdcard", SDMMC_1BIT, false);
   vTaskDelay(10);
-  if(!ready) ready = begin(SDC_CS, SDREALSPI, SDSPISPEED);
+  if(!ready) ready = SD_MMC.begin("/sdcard", SDMMC_1BIT, false);
   vTaskDelay(20);
-  if(!ready) ready = begin(SDC_CS, SDREALSPI, SDSPISPEED);
+  if(!ready) ready = SD_MMC.begin("/sdcard", SDMMC_1BIT, false);
   vTaskDelay(50);
-  if(!ready) ready = begin(SDC_CS, SDREALSPI, SDSPISPEED);
+  if(!ready) ready = SD_MMC.begin("/sdcard", SDMMC_1BIT, false);
+#else
+  ready = SD.begin(SDC_CS, SDREALSPI, SDSPISPEED);
+  vTaskDelay(10);
+  if(!ready) ready = SD.begin(SDC_CS, SDREALSPI, SDSPISPEED);
+  vTaskDelay(20);
+  if(!ready) ready = SD.begin(SDC_CS, SDREALSPI, SDSPISPEED);
+  vTaskDelay(50);
+  if(!ready) ready = SD.begin(SDC_CS, SDREALSPI, SDSPISPEED);
+#endif
   return ready;
 }
 
 void SDManager::stop(){
-  end();
+#if SDMMC_INTERNAL
+  SD_MMC.end();
+#else
+  SD.end();
+#endif
   ready = false;
 }
-#include "diskio_impl.h"
-bool SDManager::cardPresent() {
 
+bool SDManager::cardPresent() {
   if(!ready) return false;
+#if SDMMC_INTERNAL
+  return SD_MMC.cardType() != CARD_NONE && SD_MMC.cardSize() > 0;
+#else
   if(sectorSize()<1) {
     return false;
   }
   uint8_t buff[sectorSize()] = { 0 };
-  bool bread = readRAW(buff, 1);
+  bool bread = SD.readRAW(buff, 1);
   if(sectorSize()>0 && !bread) return false;
   return bread;
+#endif
+}
+
+File SDManager::open(const char* path, const char* mode, const bool create) {
+  return filesystem()->open(path, mode, create);
+}
+
+bool SDManager::exists(const char* path) {
+  return filesystem()->exists(path);
+}
+
+bool SDManager::remove(const char* path) {
+  return filesystem()->remove(path);
 }
 
 bool SDManager::_checkNoMedia(const char* path){
@@ -71,7 +116,7 @@ bool SDManager::_endsWith (const char* base, const char* str) {
 }
 
 void SDManager::listSD(File &plSDfile, File &plSDindex, const char* dirname, uint8_t levels) {
-    File root = sdman.open(dirname);
+    File root = open(dirname);
     if (!root) {
         Serial.println("##[ERROR]#\tFailed to open directory");
         return;
@@ -135,5 +180,3 @@ void SDManager::indexSDPlaylist() {
   delay(50);
 }
 #endif
-
-

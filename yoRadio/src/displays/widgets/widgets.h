@@ -153,18 +153,18 @@ class SliderWidget: public Widget {
 class VuWidget: public Widget {
   public:
     VuWidget() {}
-    VuWidget(WidgetConfig wconf, VUBandsConfig bands, uint16_t vumaxcolor, uint16_t vumincolor, uint16_t bgcolor)
-            { init(wconf, bands, vumaxcolor, vumincolor, bgcolor); }
+    VuWidget(WidgetConfig wconf, VUBandsConfig bands, uint16_t vumaxcolor, uint16_t vumidcolor, uint16_t vumincolor, uint16_t vuframecolor, uint16_t bgcolor)
+            { init(wconf, bands, vumaxcolor, vumidcolor, vumincolor, vuframecolor, bgcolor); }
     ~VuWidget();
     using Widget::init;
-    void init(WidgetConfig wconf, VUBandsConfig bands, uint16_t vumaxcolor, uint16_t vumincolor, uint16_t bgcolor);
+    void init(WidgetConfig wconf, VUBandsConfig bands, uint16_t vumaxcolor, uint16_t vumidcolor, uint16_t vumincolor, uint16_t vuframecolor, uint16_t bgcolor);
     void loop();
   protected:
     #if !defined(DSP_LCD) && !defined(DSP_OLED)
       Canvas *_canvas;
     #endif
     VUBandsConfig _bands;
-    uint16_t _vumaxcolor, _vumincolor;
+    uint16_t _vumaxcolor, _vumidcolor, _vumincolor, _vuframecolor;
     void _draw();
     void _clear();
 };
@@ -210,6 +210,7 @@ class ClockWidget: public Widget {
     void clear(){ _clearClock(); }
     inline uint16_t dateSize(){ return _space+ _dateheight; }
     inline uint16_t clockWidth(){ return _clockwidth; }
+    inline uint16_t leftPos(){ return _clockleft; }
   private:
   #ifndef DSP_LCD
     Adafruit_GFX &getRealDsp();

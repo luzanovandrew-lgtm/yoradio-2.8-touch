@@ -32,6 +32,7 @@ The connection tables are located here https://github.com/e2002/yoradio#connecti
 //#define TFT_CS            5                 /*  SPI CS pin  */
 //#define TFT_RST           15                /*  SPI RST pin.  set to -1 and connect to Esp EN pin */
 //#define TFT_DC            4                 /*  SPI DC/RS pin  */
+//#define DSP_SPIPINS       12, 13, 11        /*  Custom SPI pins: SCK, MISO, MOSI (ESP32/ESP32-S3) */
 /*  HSPI PINS. SCL(SCK, CLK) must be connected to pin 14
                SDA(MOSI, DIN, SDI) must be connected to pin 13  */
 //#define DSP_HSPI          false             /*  Use HSPI for display  */
@@ -140,6 +141,7 @@ The connection tables are located here https://github.com/e2002/yoradio#connecti
 //#define TS_SCL                32
 //#define TS_INT                21
 //#define TS_RST                25
+//#define TS_ADDR               0x38
 /******************************************/
 
 /*  Other settings.  */

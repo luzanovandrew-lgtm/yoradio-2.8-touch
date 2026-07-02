@@ -24,7 +24,7 @@
 #include <ArduinoOTA.h>
 #endif
 
-#if DSP_HSPI || TS_HSPI || VS_HSPI
+#if DSP_HSPI || VS_HSPI || DSP_CUSTOM_SPI
 SPIClass  SPI2(HSPI);
 #endif
 
@@ -84,10 +84,10 @@ void setup() {
     while(!display.ready()) delay(10);
     return;
   }
-  if(SDC_CS!=255) {
+  #ifdef USE_SD
     display.putRequest(WAITFORSD, 0);
     Serial.print("##[BOOT]#\tSD search\t");
-  }
+  #endif
   config.initPlaylistMode();
   netserver.begin();
   telnet.begin();
@@ -109,7 +109,9 @@ void loop() {
   timekeeper.loop1();
   telnet.loop();
   if (network.status == CONNECTED || network.status==SDREADY) {
+#if !USE_PLAYER_TASK
     player.loop();
+#endif
 #if USE_OTA
     ArduinoOTA.handle();
 #endif

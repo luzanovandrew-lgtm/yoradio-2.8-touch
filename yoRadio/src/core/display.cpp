@@ -13,6 +13,10 @@
 #include "../displays/widgets/widgets.h"
 #include "../displays/widgets/pages.h"
 #include "../displays/tools/l10n.h"
+#if DSP_MODEL==DSP_ILI9341 && __has_include("../displays/fonts/weathericon.h")
+  #include "../displays/fonts/weathericon.h"
+  #define HAS_WEATHER_ICONS 1
+#endif
 
 Display display;
 #ifdef USE_NEXTION
@@ -91,6 +95,7 @@ Display::~Display() {
   delete _nums;
   delete _clock;
   delete _meta;
+  delete _titleline;
   delete _title1;
   delete _title2;
   delete _plcurrent;
@@ -168,6 +173,7 @@ void Display::_buildPager(){
   #ifndef HIDE_TITLE2
     _title2 = new ScrollWidget("*", title2Conf, config.theme.title2, config.theme.background);
   #endif
+  _titleline = new FillWidget(title2LineConf, config.theme.clock);
   #if !defined(DSP_LCD) && DSP_MODEL!=DSP_NOKIA5110
     _plbackground = new FillWidget(playlBGConf, config.theme.plcurrentfill);
     #if DSP_INVERT_TITLE || defined(DSP_OLED)
@@ -181,7 +187,7 @@ void Display::_buildPager(){
     //_metabackground = new FillWidget(metaBGConf, 1);
   #endif
   #ifndef HIDE_VU
-    _vuwidget = new VuWidget(vuConf, bandsConf, config.theme.vumax, config.theme.vumin, config.theme.background);
+    _vuwidget = new VuWidget(vuConf, bandsConf, config.theme.vumax, config.theme.vumid, config.theme.vumin, config.theme.vuframe, config.theme.background);
   #endif
   #ifndef HIDE_VOLBAR
     _volbar = new SliderWidget(volbarConf, config.theme.volbarin, config.theme.background, 254, config.theme.volbarout);
@@ -213,6 +219,7 @@ void Display::_buildPager(){
   pages[PG_PLAYER]->addWidget(_meta);
   pages[PG_PLAYER]->addWidget(_title1);
   if(_title2) pages[PG_PLAYER]->addWidget(_title2);
+  if(_titleline) pages[PG_PLAYER]->addWidget(_titleline);
   if(_weather) pages[PG_PLAYER]->addWidget(_weather);
   #if BITRATE_FULL
     _fullbitrate = new BitrateWidget(fullbitrateConf, config.theme.bitrate, config.theme.background);
@@ -310,6 +317,7 @@ void Display::_start() {
   _volume();
   _station();
   _time(false);
+  _drawWeatherIcon();
   _bootStep = 2;
   pm.on_display_player();
 }
@@ -349,6 +357,7 @@ void Display::_swichMode(displayMode_e newmode) {
     _nums->setText("");
     config.isScreensaver = false;
     _pager->setPage( pages[PG_PLAYER]);
+    _drawWeatherIcon();
     config.setDspOn(config.store.dspon, false);
     pm.on_display_player();
   }
@@ -465,8 +474,8 @@ void Display::loop() {
             if(_mode==INFO)     nextion.rssi();
           #endif*/
           break;
-        case NEWTITLE: _title(); break;
-        case NEWSTATION: _station(); break;
+        case NEWTITLE: _title(); _drawWeatherIcon(); break;
+        case NEWSTATION: _station(); _drawWeatherIcon(); break;
         case NEXTSTATION: _drawNextStationNum(request.payload); break;
         case DRAWPLAYLIST: _drawPlaylist(); break;
         case DRAWVOL: _volume(); break;
@@ -497,10 +506,12 @@ void Display::loop() {
           }else{
             if(_weather) _weather->setText(LANG::const_getWeather);
           }
+          _drawWeatherIcon();
           break;
         }
         case NEWWEATHER: {
           if(_weather && timekeeper.weatherBuf) _weather->setText(timekeeper.weatherBuf);
+          _drawWeatherIcon();
           break;
         }
         case BOOTSTRING: {
@@ -521,8 +532,8 @@ void Display::loop() {
           break;
         }
         case DSPRSSI: if(_rssi){ _setRSSI(request.payload); } if (_heapbar && config.store.audioinfo) _heapbar->setValue(player.isRunning()?player.inBufferFilled():0); break;
-        case PSTART: _layoutChange(true);   break;
-        case PSTOP:  _layoutChange(false);  break;
+        case PSTART: _layoutChange(true); _drawWeatherIcon();  break;
+        case PSTOP:  _layoutChange(false); _drawWeatherIcon(); break;
         case DSP_START: _start();  break;
         case NEWIP: {
           #ifndef HIDE_IP
@@ -641,6 +652,41 @@ void Display::_volume() {
   /*#ifdef USE_NEXTION
     nextion.setVol(config.store.volume, _mode == VOL);
   #endif*/
+}
+
+void Display::_drawWeatherIcon() {
+  #if defined(HIDE_WEATHER)
+    return;
+  #endif
+
+  #if DSP_MODEL==DSP_ILI9341
+    const uint16_t iconTop = 112;
+    const uint16_t iconSize = 80;
+    uint16_t clockLeft = _clock ? _clock->leftPos() : dsp.width();
+    uint16_t iconCenter = clockLeft / 2 + 4;
+    int16_t iconLeft = (int16_t)iconCenter - (int16_t)(iconSize / 2);
+    if(iconLeft < 0) iconLeft = 0;
+    dsp.fillRect(0, iconTop, clockLeft, iconSize, config.theme.background);
+
+    #ifdef HAS_WEATHER_ICONS
+      if(!config.store.showweather || strlen(timekeeper.weatherIcon) == 0) return;
+
+      const uint16_t *iconBitmap = img_03dn;
+      if(strcmp(timekeeper.weatherIcon, "01d") == 0) iconBitmap = img_01d;
+      else if(strcmp(timekeeper.weatherIcon, "01n") == 0) iconBitmap = img_01n;
+      else if(strcmp(timekeeper.weatherIcon, "02d") == 0) iconBitmap = img_02d;
+      else if(strcmp(timekeeper.weatherIcon, "02n") == 0) iconBitmap = img_02n;
+      else if(strcmp(timekeeper.weatherIcon, "03d") == 0 || strcmp(timekeeper.weatherIcon, "03n") == 0) iconBitmap = img_03dn;
+      else if(strcmp(timekeeper.weatherIcon, "04d") == 0 || strcmp(timekeeper.weatherIcon, "04n") == 0) iconBitmap = img_04dn;
+      else if(strcmp(timekeeper.weatherIcon, "09d") == 0 || strcmp(timekeeper.weatherIcon, "09n") == 0) iconBitmap = img_09dn;
+      else if(strcmp(timekeeper.weatherIcon, "10d") == 0 || strcmp(timekeeper.weatherIcon, "10n") == 0) iconBitmap = img_10dn;
+      else if(strcmp(timekeeper.weatherIcon, "11d") == 0 || strcmp(timekeeper.weatherIcon, "11n") == 0) iconBitmap = img_11dn;
+      else if(strcmp(timekeeper.weatherIcon, "13d") == 0 || strcmp(timekeeper.weatherIcon, "13n") == 0) iconBitmap = img_13dn;
+      else if(strcmp(timekeeper.weatherIcon, "50d") == 0 || strcmp(timekeeper.weatherIcon, "50n") == 0) iconBitmap = img_50dn;
+
+      dsp.drawRGBBitmap(iconLeft, iconTop, (uint16_t*)iconBitmap, iconSize, iconSize);
+    #endif
+  #endif
 }
 
 void Display::flip(){ dsp.flip(); }

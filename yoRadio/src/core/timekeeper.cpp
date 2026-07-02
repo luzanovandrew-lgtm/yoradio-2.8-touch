@@ -68,6 +68,7 @@ TimeKeeper::TimeKeeper(){
   forceTimeSync = true;
   _returnPlayerTime = _doAfterTime = 0;
   weatherBuf=NULL;
+  memset(weatherIcon, 0, sizeof(weatherIcon));
   #if (DSP_MODEL!=DSP_DUMMY || defined(USE_NEXTION)) && !defined(HIDE_WEATHER)
     weatherBuf = (char *) malloc(sizeof(char) * WEATHER_STRING_L);
     memset(weatherBuf, 0, WEATHER_STRING_L);
@@ -342,15 +343,8 @@ bool _getWeather() {
         #endif
         
         Serial.printf("##WEATHER###: description: %s, temp:%.1f C, pressure:%dmmHg, humidity:%d%%, wind: %d\n", desc, tempf, press, hum, (int)(wind_deg/22.5));
-        #ifdef WEATHER_FMT_SHORT
-        sprintf(timekeeper.weatherBuf, weatherFmt, tempf, press, hum);
-        #else
-          #if EXT_WEATHER
-            sprintf(timekeeper.weatherBuf, LANG::weatherFmt, desc, tempf, tempfl, press, hum, wind_speed, LANG::wind[(int)(wind_deg/22.5)]);
-          #else
-            sprintf(timekeeper.weatherBuf, LANG::weatherFmt, desc, tempf, press, hum);
-          #endif
-        #endif
+        strlcpy(timekeeper.weatherIcon, icon, sizeof(timekeeper.weatherIcon));
+        snprintf(timekeeper.weatherBuf, WEATHER_STRING_L, "%+.0fC %d%% %dмм", tempf, hum, press);
         display.putRequest(NEWWEATHER);
       } else {
         Serial.println("##WEATHER###: weather not found !");

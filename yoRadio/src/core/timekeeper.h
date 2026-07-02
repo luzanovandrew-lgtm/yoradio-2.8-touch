@@ -11,6 +11,7 @@ class TimeKeeper {
     volatile bool forceTimeSync;
     volatile bool busy;
     char *weatherBuf;
+    char weatherIcon[5];
   public:
     TimeKeeper();
     bool loop0();

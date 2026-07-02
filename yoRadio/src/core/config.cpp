@@ -99,7 +99,7 @@ void Config::init() {
   if(emptyFS) BOOTLOG("SPIFFS is empty!");
   ssidsCount = 0;
   #ifdef USE_SD
-  _SDplaylistFS = getMode()==PM_SDCARD?&sdman:(true?&SPIFFS:_SDplaylistFS);
+  _SDplaylistFS = getMode()==PM_SDCARD?sdman.filesystem():&SPIFFS;
   #else
   _SDplaylistFS = &SPIFFS;
   #endif
@@ -142,7 +142,6 @@ void Config::_setupVersion(){
 void Config::changeMode(int newmode){
 #ifdef USE_SD
   bool pir = player.isRunning();
-  if(SDC_CS==255) return;
   if(getMode()==PM_SDCARD) {
     sdResumePos = player.getFilePos();
   }
@@ -166,7 +165,7 @@ void Config::changeMode(int newmode){
     store.play_mode=(playMode_e)newmode;
   }
   saveValue(&store.play_mode, store.play_mode, true, true);
-  _SDplaylistFS = getMode()==PM_SDCARD?&sdman:(true?&SPIFFS:_SDplaylistFS);
+  _SDplaylistFS = getMode()==PM_SDCARD?sdman.filesystem():&SPIFFS;
   if(getMode()==PM_SDCARD){
     if(pir) player.sendCommand({PR_STOP, 0});
     display.putRequest(NEWMODE, SDCHANGE);
@@ -340,7 +339,9 @@ void Config::loadTheme(){
   theme.div           = color565(COLOR_DIVIDER);
   theme.weather       = color565(COLOR_WEATHER);
   theme.vumax         = color565(COLOR_VU_MAX);
+  theme.vumid         = color565(COLOR_VU_MID);
   theme.vumin         = color565(COLOR_VU_MIN);
+  theme.vuframe       = color565(COLOR_VU_FRAME);
   theme.clock         = color565(COLOR_CLOCK);
   theme.clockbg       = color565(COLOR_CLOCK_BG);
   theme.seconds       = color565(COLOR_SECONDS);
@@ -485,9 +486,9 @@ void Config::resetSystem(const char *val, uint8_t clientId){
     return;
   }
   if (strcmp(val, "screen") == 0) {
-    saveValue(&store.flipscreen, false, false);
+    saveValue(&store.flipscreen, DEFAULT_FLIPSCREEN, false);
     display.flip();
-    saveValue(&store.invertdisplay, false, false);
+    saveValue(&store.invertdisplay, DEFAULT_INVERTDISPLAY, false);
     display.invert();
     saveValue(&store.dspon, true, false);
     store.brightness = 100;
@@ -565,8 +566,8 @@ void Config::setDefaults() {
 
   store.vumeter=false;
   store.softapdelay=0;
-  store.flipscreen=false;
-  store.invertdisplay=false;
+  store.flipscreen=DEFAULT_FLIPSCREEN;
+  store.invertdisplay=DEFAULT_INVERTDISPLAY;
   store.numplaylist=false;
   store.fliptouch=false;
   store.dbgtouch=false;
@@ -1044,7 +1045,11 @@ void Config::bootInfo() {
   BOOTLOG("encoders:\tl1=%d, b1=%d, r1=%d, pullup=%s, l2=%d, b2=%d, r2=%d, pullup=%s", 
           ENC_BTNL, ENC_BTNB, ENC_BTNR, ENC_INTERNALPULLUP?"true":"false", ENC2_BTNL, ENC2_BTNB, ENC2_BTNR, ENC2_INTERNALPULLUP?"true":"false");
   BOOTLOG("ir:\t\t%d", IR_PIN);
-  if(SDC_CS!=255) BOOTLOG("SD:\t\t%d", SDC_CS);
+  #if SDMMC_INTERNAL
+    BOOTLOG("SD_MMC:\t\tclk=%d cmd=%d d0=%d d1=%d d2=%d d3=%d 1bit=%s", SDC_CLK, SDC_CMD, SDC_D0, SDC_D1, SDC_D2, SDC_D3, SDMMC_1BIT?"true":"false");
+  #elif SDC_CS!=255
+    BOOTLOG("SD:\t\t%d", SDC_CS);
+  #endif
   BOOTLOG("------------------------------------------------");
 }
 

@@ -49,7 +49,9 @@ struct theme_t {
   uint16_t div;
   uint16_t weather;
   uint16_t vumax;
+  uint16_t vumid;
   uint16_t vumin;
+  uint16_t vuframe;
   uint16_t clock;
   uint16_t clockbg;
   uint16_t seconds;
@@ -307,7 +309,7 @@ class Config {
 };
 
 extern Config config;
-#if DSP_HSPI || TS_HSPI || VS_HSPI
+#if DSP_HSPI || VS_HSPI || DSP_CUSTOM_SPI
 extern SPIClass  SPI2;
 #endif
 

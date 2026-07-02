@@ -3,13 +3,16 @@
 #include "dspcore.h"
 #include "../core/config.h"
 
-#if DSP_HSPI
+#if DSP_HSPI || DSP_CUSTOM_SPI
 DspCore::DspCore(): Adafruit_ILI9341(&SPI2, TFT_DC, TFT_CS, TFT_RST) {}
 #else
 DspCore::DspCore(): Adafruit_ILI9341(TFT_CS, TFT_DC, TFT_RST) {}
 #endif
 
 void DspCore::initDisplay() {
+#if defined(DSP_SPIPINS)
+  SPI2.begin(DSP_SPIPINS);
+#endif
   begin();             /* SPI_DEFAULT_FREQ 40000000 */
   invert();
   cp437(true);
