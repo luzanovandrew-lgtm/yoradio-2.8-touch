@@ -19,4 +19,13 @@
 #define TS_INT            17
 #define TS_ADDR           0x38
 
+#define SDMMC_INTERNAL    true
+#define SDMMC_1BIT        false
+#define SDC_CLK           38
+#define SDC_CMD           40
+#define SDC_D0            39
+#define SDC_D1            41
+#define SDC_D2            48
+#define SDC_D3            47
+
 #endif

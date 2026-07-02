@@ -141,10 +141,34 @@ The connection tables are located here https://github.com/e2002/yoradio#connecti
 #ifndef SDC_CS
   #define SDC_CS        255  // SDCARD CS pin
 #endif
+#ifndef SDMMC_INTERNAL
+  #define SDMMC_INTERNAL false  // use built-in SD_MMC slot instead of SPI SD
+#endif
+#ifndef SDMMC_1BIT
+  #define SDMMC_1BIT    false  // false = 4-bit bus, true = DAT0 only
+#endif
+#ifndef SDC_CLK
+  #define SDC_CLK       255
+#endif
+#ifndef SDC_CMD
+  #define SDC_CMD       255
+#endif
+#ifndef SDC_D0
+  #define SDC_D0        255
+#endif
+#ifndef SDC_D1
+  #define SDC_D1        255
+#endif
+#ifndef SDC_D2
+  #define SDC_D2        255
+#endif
+#ifndef SDC_D3
+  #define SDC_D3        255
+#endif
 #ifndef SD_HSPI
   #define SD_HSPI       false  // use HSPI for SD (miso=12, mosi=13, clk=14) instead of VSPI (by default)
 #endif
-#if SDC_CS!=255
+#if SDC_CS!=255 || SDMMC_INTERNAL
   #define USE_SD
 #endif
 /*        ENCODER                 */

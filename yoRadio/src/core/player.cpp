@@ -121,7 +121,7 @@ void Player::_stop(bool alreadyStopped){
 
 void Player::initHeaders(const char *file) {
   if(strlen(file)==0 || true) return; //TODO Read TAGs
-  connecttoFS(sdman,file);
+  connecttoFS(*sdman.filesystem(), file);
   eofHeader = false;
   while(!eofHeader) Audio::loop();
   //netserver.requestOnChange(SDPOS, 0);
@@ -226,7 +226,7 @@ void Player::_play(uint16_t stationId) {
   
   bool isConnected = false;
   if(config.getMode()==PM_SDCARD && SDC_CS!=255){
-    isConnected=connecttoFS(sdman,config.station.url,config.sdResumePos==0?_resumeFilePos:config.sdResumePos-player.sd_min);
+    isConnected=connecttoFS(*sdman.filesystem(), config.station.url, config.sdResumePos==0?_resumeFilePos:config.sdResumePos-player.sd_min);
   }else {
     config.saveValue(&config.store.play_mode, static_cast<uint8_t>(PM_WEB));
   }

@@ -99,7 +99,7 @@ void Config::init() {
   if(emptyFS) BOOTLOG("SPIFFS is empty!");
   ssidsCount = 0;
   #ifdef USE_SD
-  _SDplaylistFS = getMode()==PM_SDCARD?&sdman:(true?&SPIFFS:_SDplaylistFS);
+  _SDplaylistFS = getMode()==PM_SDCARD?sdman.filesystem():&SPIFFS;
   #else
   _SDplaylistFS = &SPIFFS;
   #endif
@@ -142,7 +142,6 @@ void Config::_setupVersion(){
 void Config::changeMode(int newmode){
 #ifdef USE_SD
   bool pir = player.isRunning();
-  if(SDC_CS==255) return;
   if(getMode()==PM_SDCARD) {
     sdResumePos = player.getFilePos();
   }
@@ -166,7 +165,7 @@ void Config::changeMode(int newmode){
     store.play_mode=(playMode_e)newmode;
   }
   saveValue(&store.play_mode, store.play_mode, true, true);
-  _SDplaylistFS = getMode()==PM_SDCARD?&sdman:(true?&SPIFFS:_SDplaylistFS);
+  _SDplaylistFS = getMode()==PM_SDCARD?sdman.filesystem():&SPIFFS;
   if(getMode()==PM_SDCARD){
     if(pir) player.sendCommand({PR_STOP, 0});
     display.putRequest(NEWMODE, SDCHANGE);
@@ -1044,7 +1043,11 @@ void Config::bootInfo() {
   BOOTLOG("encoders:\tl1=%d, b1=%d, r1=%d, pullup=%s, l2=%d, b2=%d, r2=%d, pullup=%s", 
           ENC_BTNL, ENC_BTNB, ENC_BTNR, ENC_INTERNALPULLUP?"true":"false", ENC2_BTNL, ENC2_BTNB, ENC2_BTNR, ENC2_INTERNALPULLUP?"true":"false");
   BOOTLOG("ir:\t\t%d", IR_PIN);
-  if(SDC_CS!=255) BOOTLOG("SD:\t\t%d", SDC_CS);
+  #if SDMMC_INTERNAL
+    BOOTLOG("SD_MMC:\t\tclk=%d cmd=%d d0=%d d1=%d d2=%d d3=%d 1bit=%s", SDC_CLK, SDC_CMD, SDC_D0, SDC_D1, SDC_D2, SDC_D3, SDMMC_1BIT?"true":"false");
+  #elif SDC_CS!=255
+    BOOTLOG("SD:\t\t%d", SDC_CS);
+  #endif
   BOOTLOG("------------------------------------------------");
 }
 
