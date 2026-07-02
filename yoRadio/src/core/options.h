@@ -136,6 +136,22 @@ The connection tables are located here https://github.com/e2002/yoradio#connecti
 #ifndef I2S_LRC
   #define I2S_LRC       25  // WSEL Left Right Clock
 #endif
+#ifndef I2S_DIN
+  #define I2S_DIN       255 // optional DIN input
+#endif
+#ifndef I2S_MCLK
+  #define I2S_MCLK      255 // optional master clock
+#endif
+#ifdef USE_ES8311
+  #ifndef ES8311_MAX_I2S
+    #define ES8311_MAX_I2S 180
+  #endif
+  #undef PLAYER_FORCE_MONO
+  #define PLAYER_FORCE_MONO true
+#endif
+#ifndef VOLUME_SCALE
+  #define VOLUME_SCALE 254
+#endif
 
 /*        SDCARD                  */
 #ifndef SDC_CS
@@ -342,6 +358,26 @@ The connection tables are located here https://github.com/e2002/yoradio#connecti
 #endif
 #ifndef I2S_INTERNAL
   #define I2S_INTERNAL      false  // If true - use esp32 internal DAC
+#endif
+#if I2S_DOUT!=255 && I2S_BCLK!=255 && I2S_LRC!=255
+  #define USE_AUDIO_I2S
+#elif I2S_INTERNAL
+  #define USE_AUDIO_ESP32_DAC
+#elif VS1053_CS!=255
+  #define USE_AUDIO_VS1053
+#endif
+#ifndef MAX_STREAM_RETRIES
+  #define MAX_STREAM_RETRIES 3
+#endif
+#ifndef STREAM_TIMEOUT_MS
+  #define STREAM_TIMEOUT_MS 3000
+#endif
+#ifndef PSRAM_BUFSIZE
+  #if defined(ARDUINO_ESP32_DEV)
+    #define PSRAM_BUFSIZE 550
+  #else
+    #define PSRAM_BUFSIZE 1500
+  #endif
 #endif
 #ifndef ROTATE_90
   #define ROTATE_90         false  // Optional 90 degree rotation for square displays
@@ -557,6 +593,30 @@ The connection tables are located here https://github.com/e2002/yoradio#connecti
 #endif
 #ifndef WATCHDOG_TASK_CORE_ID
   #define WATCHDOG_TASK_CORE_ID    1
+#endif
+#if defined(CONFIG_FREERTOS_UNICORE)
+  #ifndef USE_PLAYER_TASK
+    #define USE_PLAYER_TASK false
+  #endif
+  #ifndef PLAYER_TASK_CORE_ID
+    #define PLAYER_TASK_CORE_ID 0
+  #endif
+#else
+  #ifndef USE_PLAYER_TASK
+    #define USE_PLAYER_TASK true
+  #endif
+  #ifndef PLAYER_TASK_CORE_ID
+    #define PLAYER_TASK_CORE_ID (ARDUINO_RUNNING_CORE == 0 ? 1 : 0)
+  #endif
+#endif
+#ifndef PLAYER_TASK_STACK_SIZE
+  #define PLAYER_TASK_STACK_SIZE (1024 * 8)
+#endif
+#ifndef PLAYER_TASK_PRIORITY
+  #define PLAYER_TASK_PRIORITY 2
+#endif
+#ifndef PLAYER_TASK_DELAY
+  #define PLAYER_TASK_DELAY 1
 #endif
 #ifndef CONNECTION_TIMEOUT
   #define CONNECTION_TIMEOUT    5700

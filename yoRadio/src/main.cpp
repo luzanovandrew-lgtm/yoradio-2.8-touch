@@ -109,7 +109,9 @@ void loop() {
   timekeeper.loop1();
   telnet.loop();
   if (network.status == CONNECTED || network.status==SDREADY) {
+#if !USE_PLAYER_TASK
     player.loop();
+#endif
 #if USE_OTA
     ArduinoOTA.handle();
 #endif
