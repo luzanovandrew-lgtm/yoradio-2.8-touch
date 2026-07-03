@@ -660,6 +660,8 @@ void Display::_drawWeatherIcon() {
   #endif
 
   #if DSP_MODEL==DSP_ILI9341
+    if(_mode != PLAYER) return;
+
     const uint16_t iconTop = 112;
     const uint16_t iconSize = 80;
     uint16_t clockLeft = _clock ? _clock->leftPos() : dsp.width();
