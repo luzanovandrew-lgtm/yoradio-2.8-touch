@@ -141,18 +141,19 @@ uint16_t Display::height(){ return dsp.height(); }
     #define BOOT_TXT_COLOR    0x3f
     #define PINK              0x02
   #else
-    #define BOOT_PRG_COLOR    0xE68B
-    #define BOOT_TXT_COLOR    0xFFFF
+    #define BOOT_PRG_COLOR    0x0000
+    #define BOOT_TXT_COLOR    0x0000
     #define PINK              0xF97F
   #endif
 #endif
 
 void Display::_bootScreen(){
+  dsp.fillRect(0, 0, dsp.width(), dsp.height(), config.theme.background);
   _boot = new Page();
-  _boot->addWidget(new ProgressWidget(bootWdtConf, bootPrgConf, BOOT_PRG_COLOR, 0));
-  _bootstring = (TextWidget*) &_boot->addWidget(new TextWidget(bootstrConf, 50, true, BOOT_TXT_COLOR, 0));
+  _boot->addWidget(new ProgressWidget(bootWdtConf, bootPrgConf, BOOT_PRG_COLOR, config.theme.background));
+  _bootstring = (TextWidget*) &_boot->addWidget(new TextWidget(bootstrConf, 50, true, BOOT_TXT_COLOR, config.theme.background));
   _pager->addPage(_boot);
-  _pager->setPage(_boot, true);
+  _pager->setPage(_boot);
   dsp.drawLogo(bootLogoTop);
   _bootStep = 1;
 }
@@ -255,25 +256,19 @@ void Display::_buildPager(){
 void Display::_apScreen() {
   if(_boot) _pager->removePage(_boot);
   #ifndef DSP_LCD
+    dsp.fillRect(0, 0, dsp.width(), dsp.height(), config.theme.background);
     _boot = new Page();
-    #if DSP_MODEL!=DSP_NOKIA5110
-      #if DSP_INVERT_TITLE || defined(DSP_OLED)
-      _boot->addWidget(new FillWidget(metaBGConf, config.theme.metafill));
-      #else
-      _boot->addWidget(new FillWidget(metaBGConfInv, config.theme.metafill));
-      #endif
-    #endif
-    ScrollWidget *bootTitle = (ScrollWidget*) &_boot->addWidget(new ScrollWidget("*", apTitleConf, config.theme.meta, config.theme.metabg));
+    ScrollWidget *bootTitle = (ScrollWidget*) &_boot->addWidget(new ScrollWidget("*", apTitleConf, BOOT_TXT_COLOR, config.theme.background));
     bootTitle->setText("ёRadio AP Mode");
-    TextWidget *apname = (TextWidget*) &_boot->addWidget(new TextWidget(apNameConf, 30, false, config.theme.title1, config.theme.background));
+    TextWidget *apname = (TextWidget*) &_boot->addWidget(new TextWidget(apNameConf, 30, false, BOOT_TXT_COLOR, config.theme.background));
     apname->setText(LANG::apNameTxt);
-    TextWidget *apname2 = (TextWidget*) &_boot->addWidget(new TextWidget(apName2Conf, 30, false, config.theme.clock, config.theme.background));
+    TextWidget *apname2 = (TextWidget*) &_boot->addWidget(new TextWidget(apName2Conf, 30, false, BOOT_TXT_COLOR, config.theme.background));
     apname2->setText(apSsid);
-    TextWidget *appass = (TextWidget*) &_boot->addWidget(new TextWidget(apPassConf, 30, false, config.theme.title1, config.theme.background));
+    TextWidget *appass = (TextWidget*) &_boot->addWidget(new TextWidget(apPassConf, 30, false, BOOT_TXT_COLOR, config.theme.background));
     appass->setText(LANG::apPassTxt);
-    TextWidget *appass2 = (TextWidget*) &_boot->addWidget(new TextWidget(apPass2Conf, 30, false, config.theme.clock, config.theme.background));
+    TextWidget *appass2 = (TextWidget*) &_boot->addWidget(new TextWidget(apPass2Conf, 30, false, BOOT_TXT_COLOR, config.theme.background));
     appass2->setText(apPassword);
-    ScrollWidget *bootSett = (ScrollWidget*) &_boot->addWidget(new ScrollWidget("*", apSettConf, config.theme.title2, config.theme.background));
+    ScrollWidget *bootSett = (ScrollWidget*) &_boot->addWidget(new ScrollWidget("*", apSettConf, BOOT_TXT_COLOR, config.theme.background));
     bootSett->setText(config.ipToStr(WiFi.softAPIP()), LANG::apSettFmt);
     _pager->addPage(_boot);
     _pager->setPage(_boot);

@@ -19,22 +19,21 @@
 #define TS_INT            17
 #define TS_ADDR           0x38
 
-#define USE_ES8311
-#define I2S_MCLK          4
-#define I2S_BCLK          5
-#define I2S_LRC           7
-#define I2S_DOUT          8
-#define I2S_DIN           6
+#define I2S_MCLK          255
+#define I2S_BCLK          43
+#define I2S_LRC           44
+#define I2S_DOUT          21
+#define I2S_DIN           255
 #define ES8311_I2C_SDA    16
 #define ES8311_I2C_SCL    15
 #define ES8311_MAX_I2S    180
 #define MUTE_PIN          1
 #define MUTE_VAL          HIGH
 
-#define ENC_BTNL          2
-#define ENC_BTNB          3
-#define ENC_BTNR          14
-#define ENC_INTERNALPULLUP true
+// #define ENC_BTNL          2
+// #define ENC_BTNB          3
+// #define ENC_BTNR          14
+// #define ENC_INTERNALPULLUP true
 
 #define SDMMC_INTERNAL    true
 #define SDMMC_1BIT        false

@@ -2519,7 +2519,7 @@ void Audio::_computeVUlevel(int16_t sample[2]) {
     vuRight = avg(sampleArray[RIGHTCHANNEL][3]);
     if(vuRight>config.vuThreshold) config.vuThreshold = vuRight;
   }
-  cnt1++;
+  cnt0++;
 }
 
 uint16_t Audio::get_VUlevel(uint16_t dimension){
