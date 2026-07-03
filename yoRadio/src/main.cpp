@@ -84,10 +84,10 @@ void setup() {
     while(!display.ready()) delay(10);
     return;
   }
-  #ifdef USE_SD
+  if(SDC_CS!=255) {
     display.putRequest(WAITFORSD, 0);
     Serial.print("##[BOOT]#\tSD search\t");
-  #endif
+  }
   config.initPlaylistMode();
   netserver.begin();
   telnet.begin();
@@ -109,9 +109,7 @@ void loop() {
   timekeeper.loop1();
   telnet.loop();
   if (network.status == CONNECTED || network.status==SDREADY) {
-#if !USE_PLAYER_TASK
     player.loop();
-#endif
 #if USE_OTA
     ArduinoOTA.handle();
 #endif

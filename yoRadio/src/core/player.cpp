@@ -16,15 +16,6 @@
 #endif
 Player player;
 QueueHandle_t playerQueue;
-static TaskHandle_t playerTaskHandle = nullptr;
-
-static void loopPlayerTask(void *pvParameters) {
-  (void)pvParameters;
-  for(;;) {
-    player.loop();
-    vTaskDelay(pdMS_TO_TICKS(PLAYER_TASK_DELAY));
-  }
-}
 
 #if VS1053_CS!=255 && !I2S_INTERNAL
   #if VS_HSPI
@@ -60,15 +51,9 @@ void Player::init() {
   memset(burl, 0, MQTT_BURL_SIZE);
 #endif
   if(MUTE_PIN!=255) pinMode(MUTE_PIN, OUTPUT);
-  #if defined(USE_AUDIO_I2S) || defined(USE_AUDIO_ESP32_DAC)
-    #if !defined(USE_AUDIO_ESP32_DAC)
-      bool pinoutOk = setPinout(I2S_BCLK, I2S_LRC, I2S_DOUT, I2S_DIN, I2S_MCLK);
-      Serial.printf("##[AUDIO]#\tsetPinout=%s bclk=%d lrc=%d dout=%d din=%d mclk=%d\n", pinoutOk?"ok":"fail", I2S_BCLK, I2S_LRC, I2S_DOUT, I2S_DIN, I2S_MCLK);
-    #endif
-    #if CONFIG_FREERTOS_UNICORE
-      setAudioTaskCore(0);
-    #else
-      setAudioTaskCore(ARDUINO_RUNNING_CORE == 0 ? 1 : 0);
+  #if I2S_DOUT!=255
+    #if !I2S_INTERNAL
+      setPinout(I2S_BCLK, I2S_LRC, I2S_DOUT, I2S_DIN, I2S_MCLK);
     #endif
   #else
     SPI.begin();
@@ -76,19 +61,17 @@ void Player::init() {
     begin();
   #endif
 #ifdef USE_ES8311
-  bool esOk = es.begin(ES8311_I2C_SDA, ES8311_I2C_SCL, 400000UL);
-  Serial.printf("##[AUDIO]#\tES8311 begin=%s sda=%d scl=%d mute=%d\n", esOk?"ok":"fail", ES8311_I2C_SDA, ES8311_I2C_SCL, MUTE_PIN);
-  if(esOk) {
+  if (es.begin(ES8311_I2C_SDA, ES8311_I2C_SCL, 400000UL)) {
     es.setVolume(0);
   }
 #endif
   setBalance(config.store.balance);
   setTone(config.store.bass, config.store.middle, config.store.trebble);
-  #ifdef USE_ES8311
-    setVolume(VOLUME_SCALE);
-  #else
-    setVolume(0);
-  #endif
+#ifdef USE_ES8311
+  setVolume(VOLUME_SCALE);
+#else
+  setVolume(0);
+#endif
   _status = STOPPED;
   _volTimer=false;
   //randomSeed(analogRead(0));
@@ -101,20 +84,6 @@ void Player::init() {
 #endif
   setConnectionTimeout(CONNECTION_TIMEOUT, CONNECTION_TIMEOUT_SSL);
   Serial.println("done");
-
-#if USE_PLAYER_TASK
-  if(playerTaskHandle == nullptr) {
-    xTaskCreatePinnedToCore(
-      loopPlayerTask,
-      "PlayerTask",
-      PLAYER_TASK_STACK_SIZE,
-      NULL,
-      PLAYER_TASK_PRIORITY,
-      &playerTaskHandle,
-      PLAYER_TASK_CORE_ID
-    );
-  }
-#endif
 }
 
 void Player::sendCommand(playerRequestParams_t request){
@@ -207,13 +176,11 @@ void Player::loop() {
       }
       case PR_VOL: {
         config.setVolume(requestP.payload);
-        #ifdef USE_ES8311
-          Audio::setVolume(VOLUME_SCALE);
-        #else
-          Audio::setVolume(volToI2S(requestP.payload));
-        #endif
 #ifdef USE_ES8311
+        Audio::setVolume(VOLUME_SCALE);
         es.setVolume(map(volToI2S(requestP.payload), 0, ES8311_MAX_I2S, 0, 100));
+#else
+        Audio::setVolume(volToI2S(requestP.payload));
 #endif
         break;
       }
@@ -262,9 +229,8 @@ void Player::loop() {
 
 void Player::setOutputPins(bool isPlaying) {
   if(REAL_LEDBUILTIN!=255) digitalWrite(REAL_LEDBUILTIN, LED_INVERT?!isPlaying:isPlaying);
-  bool _ml = MUTE_LOCK ? !MUTE_VAL : (isPlaying ? !MUTE_VAL : MUTE_VAL);
+  bool _ml = MUTE_LOCK?!MUTE_VAL:(isPlaying?!MUTE_VAL:MUTE_VAL);
   if(MUTE_PIN!=255) digitalWrite(MUTE_PIN, _ml);
-  Serial.printf("##[AUDIO]#\tsetOutputPins playing=%d mutePin=%d level=%d\n", isPlaying ? 1 : 0, MUTE_PIN, _ml ? 1 : 0);
 }
 
 void Player::_play(uint16_t stationId) {
@@ -279,7 +245,7 @@ void Player::_play(uint16_t stationId) {
   _loadVol(config.store.volume);
   
   bool isConnected = false;
-  if(config.getMode()==PM_SDCARD && (SDC_CS!=255 || SDMMC_INTERNAL)){
+  if(config.getMode()==PM_SDCARD && SDC_CS!=255){
     isConnected=connecttoFS(*sdman.filesystem(), config.station.url, config.sdResumePos==0?_resumeFilePos:config.sdResumePos-player.sd_min);
   }else {
     config.saveValue(&config.store.play_mode, static_cast<uint8_t>(PM_WEB));
@@ -372,7 +338,6 @@ uint8_t Player::volToI2S(uint8_t volume) {
 #ifdef USE_ES8311
   int maxIn = 254 - config.station.ovol * 3;
   if (maxIn < 1) maxIn = 1;
-  if (volume > (uint8_t)maxIn) volume = (uint8_t)maxIn;
   float vnorm = (float)volume / (float)maxIn;
   if (vnorm < 0.0f) vnorm = 0.0f;
   if (vnorm > 1.0f) vnorm = 1.0f;
