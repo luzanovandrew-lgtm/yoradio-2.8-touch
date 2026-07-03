@@ -1,6 +1,12 @@
 /*************************************************************************************
-    Custom ILI9341 320x240 layout for the ESP32-S3 2.8" touch board.
-    Based on upstream displayILI9341conf.h with a cleaner centered composition.
+    Custom ILI9341 320x240 layout for the LCDWIKI ES3C28P / ESP32-S3 2.8" touch board.
+    Board profile summary:
+      - LCD: ILI9341V, 320x240, SPI on GPIO12/13/11 with CS=10 DC=46 BL=45
+      - Touch: FT6336G, I2C on GPIO16/15 with RST=18 INT=17
+      - Storage: onboard SD_MMC slot on GPIO38/40/39/41/48/47
+      - Audio: this project keeps board pin choices in myoptions.h
+      - Theme: LCD palette is defined in mytheme.h
+    Based on upstream displayILI9341conf.h with a centered composition tailored for this panel.
 *************************************************************************************/
 
 #ifndef displayILI9341conf_custom_h
