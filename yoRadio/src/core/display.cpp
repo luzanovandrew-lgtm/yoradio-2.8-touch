@@ -641,7 +641,7 @@ void Display::_volume() {
     if(_voltxt) _voltxt->setText(config.store.volume, voltxtFmt);
   #endif
   if(_mode==VOL) {
-    timekeeper.waitAndReturnPlayer(3);
+    timekeeper.waitAndReturnPlayer(1);
     _nums->setText(config.store.volume, numtxtFmt);
   }
   /*#ifdef USE_NEXTION

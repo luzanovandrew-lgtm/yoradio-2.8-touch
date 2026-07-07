@@ -104,6 +104,8 @@ bool TimeKeeper::loop0(){ // core0 (display)
 
 bool TimeKeeper::loop1(){ // core1 (player)
   uint32_t currentTime = millis();
+  _returnPlayer();
+  _doAfterWait();
   static uint32_t _last1s = 0;
   static uint32_t _last2s = 0;
   if (currentTime - _last1s >= 1000) { // 1sec
@@ -117,8 +119,6 @@ bool TimeKeeper::loop1(){ // core1 (player)
 #endif
     _upScreensaver();
     _upSDPos();
-    _returnPlayer();
-    _doAfterWait();
   }
   if (currentTime - _last2s >= 2000) { // 2sec
     _last2s = currentTime;
