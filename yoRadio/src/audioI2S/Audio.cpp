@@ -32,6 +32,55 @@ fs::SDFATFS SD_SDFAT;
 #define dma_buf_count dma_desc_num
 #define dma_buf_len dma_frame_num
 #endif
+
+namespace {
+struct VUComputeState {
+    uint8_t sampleArray[2][4][8] = {};
+    uint8_t cnt0 = 0;
+    uint8_t cnt1 = 0;
+    uint8_t cnt2 = 0;
+    uint8_t cnt3 = 0;
+    uint8_t cnt4 = 0;
+    bool frameReady = false;
+    uint32_t leftHoldSamples = 0;
+    uint32_t rightHoldSamples = 0;
+    uint32_t leftReleaseSamples = 0;
+    uint32_t rightReleaseSamples = 0;
+
+    void reset() {
+        memset(this, 0, sizeof(*this));
+    }
+};
+
+VUComputeState s_vuState;
+
+uint32_t samplesForMs(uint32_t sampleRate, uint16_t ms) {
+    if(sampleRate == 0) sampleRate = 16000;
+    const uint64_t scaled = static_cast<uint64_t>(sampleRate) * ms;
+    return static_cast<uint32_t>((scaled + 999) / 1000);
+}
+
+void updateFusionPeak(uint16_t level, uint16_t& peak, uint8_t& holdFrames,
+                      uint32_t& holdSamples, uint32_t& releaseSamples,
+                      uint32_t holdDurationSamples, uint32_t releaseStepSamples) {
+    if(level >= peak) {
+        peak = level;
+        holdSamples = holdDurationSamples;
+        releaseSamples = 0;
+    } else if(holdSamples > 0) {
+        holdSamples--;
+    } else {
+        releaseSamples++;
+        if(releaseSamples >= releaseStepSamples) {
+            releaseSamples = 0;
+            if(peak > level) peak--;
+        }
+        if(peak < level) peak = level;
+    }
+
+    holdFrames = holdSamples > 0 ? 1 : 0;
+}
+}
 //---------------------------------------------------------------------------------------------------------------------
 AudioBuffer::AudioBuffer(size_t maxBlockSize) {
     // if maxBlockSize isn't set use defaultspace (1600 bytes) is enough for aac and mp3 player
@@ -2459,9 +2508,7 @@ bool Audio::playChunk() {
  */
 void Audio::_computeVUlevel(int16_t sample[2]) {
   if(!config.store.vumeter) return;
-  static uint8_t sampleArray[2][4][8] = {0};
-  static uint8_t cnt0 = 0, cnt1 = 0, cnt2 = 0, cnt3 = 0, cnt4 = 0;
-  static bool    f_vu = false;
+  VUComputeState& state = s_vuState;
 
   auto avg = [&](uint8_t* sampArr) { // lambda, inner function, compute the average of 8 samples
     uint16_t av = 0;
@@ -2477,77 +2524,66 @@ void Audio::_computeVUlevel(int16_t sample[2]) {
     return maxValue;
   };
 
-  if(cnt0 == 64) {
-    cnt0 = 0;
-    cnt1++;
+  if(state.cnt0 == 64) {
+    state.cnt0 = 0;
+    state.cnt1++;
   }
-  if(cnt1 == 8) {
-    cnt1 = 0;
-    cnt2++;
+  if(state.cnt1 == 8) {
+    state.cnt1 = 0;
+    state.cnt2++;
   }
-  if(cnt2 == 8) {
-    cnt2 = 0;
-    cnt3++;
+  if(state.cnt2 == 8) {
+    state.cnt2 = 0;
+    state.cnt3++;
   }
-  if(cnt3 == 8) {
-    cnt3 = 0;
-    cnt4++;
-    f_vu = true;
+  if(state.cnt3 == 8) {
+    state.cnt3 = 0;
+    state.cnt4++;
+    state.frameReady = true;
   }
-  if(cnt4 == 8) { cnt4 = 0; }
+  if(state.cnt4 == 8) { state.cnt4 = 0; }
 
-  if(!cnt0) { // store every 64th sample in the array[0]
-    sampleArray[LEFTCHANNEL][0][cnt1] = abs(sample[LEFTCHANNEL] >> 7);
-    sampleArray[RIGHTCHANNEL][0][cnt1] = abs(sample[RIGHTCHANNEL] >> 7);
+  if(!state.cnt0) { // store every 64th sample in the array[0]
+    state.sampleArray[LEFTCHANNEL][0][state.cnt1] = abs(sample[LEFTCHANNEL] >> 7);
+    state.sampleArray[RIGHTCHANNEL][0][state.cnt1] = abs(sample[RIGHTCHANNEL] >> 7);
   }
-  if(!cnt1) { // store argest from 64 * 8 samples in the array[1]
-    sampleArray[LEFTCHANNEL][1][cnt2] = largest(sampleArray[LEFTCHANNEL][0]);
-    sampleArray[RIGHTCHANNEL][1][cnt2] = largest(sampleArray[RIGHTCHANNEL][0]);
+  if(!state.cnt1) { // store argest from 64 * 8 samples in the array[1]
+    state.sampleArray[LEFTCHANNEL][1][state.cnt2] = largest(state.sampleArray[LEFTCHANNEL][0]);
+    state.sampleArray[RIGHTCHANNEL][1][state.cnt2] = largest(state.sampleArray[RIGHTCHANNEL][0]);
   }
-  if(!cnt2) { // store avg from 64 * 8 * 8 samples in the array[2]
-    sampleArray[LEFTCHANNEL][2][cnt3] = largest(sampleArray[LEFTCHANNEL][1]);
-    sampleArray[RIGHTCHANNEL][2][cnt3] = largest(sampleArray[RIGHTCHANNEL][1]);
+  if(!state.cnt2) { // store avg from 64 * 8 * 8 samples in the array[2]
+    state.sampleArray[LEFTCHANNEL][2][state.cnt3] = largest(state.sampleArray[LEFTCHANNEL][1]);
+    state.sampleArray[RIGHTCHANNEL][2][state.cnt3] = largest(state.sampleArray[RIGHTCHANNEL][1]);
   }
-  if(!cnt3) { // store avg from 64 * 8 * 8 * 8 samples in the array[3]
-    sampleArray[LEFTCHANNEL][3][cnt4] = avg(sampleArray[LEFTCHANNEL][2]);
-    sampleArray[RIGHTCHANNEL][3][cnt4] = avg(sampleArray[RIGHTCHANNEL][2]);
+  if(!state.cnt3) { // store avg from 64 * 8 * 8 * 8 samples in the array[3]
+    state.sampleArray[LEFTCHANNEL][3][state.cnt4] = avg(state.sampleArray[LEFTCHANNEL][2]);
+    state.sampleArray[RIGHTCHANNEL][3][state.cnt4] = avg(state.sampleArray[RIGHTCHANNEL][2]);
   }
-  if(f_vu) {
-    f_vu = false;
+  if(state.frameReady) {
+    state.frameReady = false;
 
-    const uint16_t nextLeft = avg(sampleArray[LEFTCHANNEL][3]);
-    const uint16_t nextRight = avg(sampleArray[RIGHTCHANNEL][3]);
-    const uint8_t holdFrames = 6;
-    const uint8_t peakRelease = 1;
+    const uint16_t nextLeft = avg(state.sampleArray[LEFTCHANNEL][3]);
+    const uint16_t nextRight = avg(state.sampleArray[RIGHTCHANNEL][3]);
 
     vuLeft = nextLeft;
     if(vuLeft > config.vuThreshold) config.vuThreshold = vuLeft;
     vuRight = nextRight;
     if(vuRight > config.vuThreshold) config.vuThreshold = vuRight;
-
-    if(vuLeft >= vuLeftPeak) {
-      vuLeftPeak = vuLeft;
-      vuLeftHold = holdFrames;
-    } else if(vuLeftHold > 0) {
-      vuLeftHold--;
-    } else if(vuLeftPeak > peakRelease) {
-      vuLeftPeak -= peakRelease;
-    } else {
-      vuLeftPeak = vuLeft;
-    }
-
-    if(vuRight >= vuRightPeak) {
-      vuRightPeak = vuRight;
-      vuRightHold = holdFrames;
-    } else if(vuRightHold > 0) {
-      vuRightHold--;
-    } else if(vuRightPeak > peakRelease) {
-      vuRightPeak -= peakRelease;
-    } else {
-      vuRightPeak = vuRight;
-    }
   }
-  cnt0++;
+
+  const uint32_t sampleRate = m_sampleRate ? m_sampleRate : 16000;
+  const uint32_t holdDurationSamples = samplesForMs(sampleRate, 120);
+  const uint32_t releaseSamples = samplesForMs(sampleRate, 5);
+  const uint32_t releaseStepSamples = releaseSamples ? releaseSamples : 1;
+
+  updateFusionPeak(vuLeft, vuLeftPeak, vuLeftHold,
+                   state.leftHoldSamples, state.leftReleaseSamples,
+                   holdDurationSamples, releaseStepSamples);
+  updateFusionPeak(vuRight, vuRightPeak, vuRightHold,
+                   state.rightHoldSamples, state.rightReleaseSamples,
+                   holdDurationSamples, releaseStepSamples);
+
+  state.cnt0++;
 }
 
 uint16_t Audio::get_VUlevel(uint16_t dimension){
@@ -2570,6 +2606,7 @@ void Audio::loop() {
       vuLeft = 0; vuRight = 0;
       vuLeftPeak = 0; vuRightPeak = 0;
       vuLeftHold = 0; vuRightHold = 0;
+      s_vuState.reset();
       vTaskDelay(2);
       return;
     }
