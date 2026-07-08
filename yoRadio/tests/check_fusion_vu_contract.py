@@ -15,6 +15,17 @@ def strip_comments(source: str) -> str:
     return source
 
 
+def extract_vu_widget_region(source: str) -> str:
+    start_match = re.search(r"void\s+VuWidget::init\s*\(", source)
+    if start_match is None:
+        raise SystemExit("Unable to isolate VuWidget implementation region in widgets.cpp")
+    region_source = source[start_match.start():]
+    end_match = re.search(r"^\s*#else\b.*$", region_source, flags=re.MULTILINE)
+    if end_match is None:
+        raise SystemExit("Unable to isolate VuWidget implementation region in widgets.cpp")
+    return region_source[:end_match.start()]
+
+
 def missing_patterns(source: str, patterns: list[tuple[str, str]]) -> list[str]:
     return [
         label
@@ -25,6 +36,7 @@ def missing_patterns(source: str, patterns: list[tuple[str, str]]) -> list[str]:
 
 audio_h = strip_comments(read_source("src", "audioI2S", "AudioEx.h"))
 widgets_cpp = strip_comments(read_source("src", "displays", "widgets", "widgets.cpp"))
+vu_widget_region = extract_vu_widget_region(widgets_cpp)
 
 required_audio_patterns = [
     ("uint16_t vuLeft, vuRight;", r"uint16_t\s+vuLeft\s*,\s*vuRight\s*;"),
@@ -43,7 +55,7 @@ required_widget_patterns = [
 ]
 
 missing_audio = missing_patterns(audio_h, required_audio_patterns)
-missing_widget = missing_patterns(widgets_cpp, required_widget_patterns)
+missing_widget = missing_patterns(vu_widget_region, required_widget_patterns)
 
 if missing_audio or missing_widget:
     raise SystemExit(
