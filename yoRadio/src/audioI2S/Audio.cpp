@@ -2514,10 +2514,38 @@ void Audio::_computeVUlevel(int16_t sample[2]) {
   }
   if(f_vu) {
     f_vu = false;
-    vuLeft = avg(sampleArray[LEFTCHANNEL][3]);
-    if(vuLeft>config.vuThreshold)  config.vuThreshold = vuLeft;
-    vuRight = avg(sampleArray[RIGHTCHANNEL][3]);
-    if(vuRight>config.vuThreshold) config.vuThreshold = vuRight;
+
+    const uint16_t nextLeft = avg(sampleArray[LEFTCHANNEL][3]);
+    const uint16_t nextRight = avg(sampleArray[RIGHTCHANNEL][3]);
+    const uint8_t holdFrames = 6;
+    const uint8_t peakRelease = 1;
+
+    vuLeft = nextLeft;
+    if(vuLeft > config.vuThreshold) config.vuThreshold = vuLeft;
+    vuRight = nextRight;
+    if(vuRight > config.vuThreshold) config.vuThreshold = vuRight;
+
+    if(vuLeft >= vuLeftPeak) {
+      vuLeftPeak = vuLeft;
+      vuLeftHold = holdFrames;
+    } else if(vuLeftHold > 0) {
+      vuLeftHold--;
+    } else if(vuLeftPeak > peakRelease) {
+      vuLeftPeak -= peakRelease;
+    } else {
+      vuLeftPeak = vuLeft;
+    }
+
+    if(vuRight >= vuRightPeak) {
+      vuRightPeak = vuRight;
+      vuRightHold = holdFrames;
+    } else if(vuRightHold > 0) {
+      vuRightHold--;
+    } else if(vuRightPeak > peakRelease) {
+      vuRightPeak -= peakRelease;
+    } else {
+      vuRightPeak = vuRight;
+    }
   }
   cnt0++;
 }
@@ -2528,11 +2556,20 @@ uint16_t Audio::get_VUlevel(uint16_t dimension){
   uint8_t R = map(vuRight, config.vuThreshold, 0, 0, dimension);
   return (L << 8) | R;
 }
+
+uint16_t Audio::get_VUpeak(uint16_t dimension){
+  if(!config.store.vumeter || config.vuThreshold==0) return 0;
+  uint8_t L = map(vuLeftPeak, config.vuThreshold, 0, 0, dimension);
+  uint8_t R = map(vuRightPeak, config.vuThreshold, 0, 0, dimension);
+  return (L << 8) | R;
+}
 //---------------------------------------------------------------------------------------------------------------------
 
 void Audio::loop() {
     if(!m_f_running) {
-      vuLeft=0; vuRight=0;
+      vuLeft = 0; vuRight = 0;
+      vuLeftPeak = 0; vuRightPeak = 0;
+      vuLeftHold = 0; vuRightHold = 0;
       vTaskDelay(2);
       return;
     }
