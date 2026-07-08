@@ -587,8 +587,12 @@ private:
     uint8_t         m_packetBuff[m_tsPacketSize];
     int16_t         m_pesDataLength = 0;
     uint16_t  vuLeft, vuRight;
+#if 0
     uint16_t  vuLeftPeak, vuRightPeak;
     uint8_t   vuLeftHold, vuRightHold;
+#endif
+    uint16_t  vuLeftPeak = 0, vuRightPeak = 0;
+    uint8_t   vuLeftHold = 0, vuRightHold = 0;
 };
 
 //----------------------------------------------------------------------------------------------------------------------

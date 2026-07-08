@@ -336,6 +336,7 @@ public:
     /* VU METER */
     void     setVUmeter();
     uint16_t get_VUlevel(uint16_t dimension);
+    uint16_t get_VUpeak(uint16_t dimension) { return get_VUlevel(dimension); }
     void     computeVUlevel();
     bool     eofHeader;
     // implement several function with respect to the index of string
