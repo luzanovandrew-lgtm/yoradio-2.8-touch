@@ -48,9 +48,13 @@ struct VUComputeState {
     uint32_t rightHoldSamples = 0;
     uint32_t leftReleaseSamples = 0;
     uint32_t rightReleaseSamples = 0;
+    uint32_t cachedSampleRate = 0;
+    uint32_t holdDurationSamples = 0;
+    uint32_t releaseStepSamples = 1;
 
     void reset() {
         memset(this, 0, sizeof(*this));
+        releaseStepSamples = 1;
     }
 };
 
@@ -87,6 +91,16 @@ void updateFusionPeak(uint16_t triggerLevel, uint16_t floorLevel, uint16_t& peak
 
     if(peak < floorLevel) peak = floorLevel;
     holdFrames = holdSamples > 0 ? 1 : 0;
+}
+
+void refreshVuTiming(VUComputeState& state, uint32_t sampleRate) {
+    if(sampleRate == 0) sampleRate = 16000;
+    if(state.cachedSampleRate == sampleRate) return;
+
+    state.cachedSampleRate = sampleRate;
+    state.holdDurationSamples = samplesForMs(sampleRate, 120);
+    state.releaseStepSamples = samplesForMs(sampleRate, 5);
+    if(state.releaseStepSamples == 0) state.releaseStepSamples = 1;
 }
 }
 //---------------------------------------------------------------------------------------------------------------------
@@ -2521,6 +2535,7 @@ bool Audio::playChunk() {
 void Audio::_computeVUlevel(int16_t sample[2]) {
   if(!config.store.vumeter) return;
   VUComputeState& state = s_vuState;
+  refreshVuTiming(state, m_sampleRate);
   const uint16_t liveLeft = vuSampleLevel(sample[LEFTCHANNEL]);
   const uint16_t liveRight = vuSampleLevel(sample[RIGHTCHANNEL]);
 
@@ -2590,17 +2605,12 @@ void Audio::_computeVUlevel(int16_t sample[2]) {
     if(vuRight > config.vuThreshold) config.vuThreshold = vuRight;
   }
 
-  const uint32_t sampleRate = m_sampleRate ? m_sampleRate : 16000;
-  const uint32_t holdDurationSamples = samplesForMs(sampleRate, 120);
-  const uint32_t releaseSamples = samplesForMs(sampleRate, 5);
-  const uint32_t releaseStepSamples = releaseSamples ? releaseSamples : 1;
-
   updateFusionPeak(state.leftPeakWindow, vuLeft, vuLeftPeak, vuLeftHold,
                    state.leftHoldSamples, state.leftReleaseSamples,
-                   holdDurationSamples, releaseStepSamples);
+                   state.holdDurationSamples, state.releaseStepSamples);
   updateFusionPeak(state.rightPeakWindow, vuRight, vuRightPeak, vuRightHold,
                    state.rightHoldSamples, state.rightReleaseSamples,
-                   holdDurationSamples, releaseStepSamples);
+                   state.holdDurationSamples, state.releaseStepSamples);
 
   state.cnt0++;
 }
