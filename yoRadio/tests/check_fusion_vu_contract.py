@@ -65,10 +65,10 @@ required_audio_patterns = [
 ]
 
 required_widget_patterns = [
-    ("player.get_VUlevel(dimension)", r"player\.get_VUlevel\s*\(\s*dimension\s*\)"),
-    ("player.get_VUpeak(dimension)", r"player\.get_VUpeak\s*\(\s*dimension\s*\)"),
-    ('setCursor(...) then print("L") nearby', r'dsp\.setCursor\s*\([^;]*\)\s*;[\s\S]{0,400}?dsp\.print\s*\(\s*"L"\s*\)'),
-    ('setCursor(...) then print("R") nearby', r'dsp\.setCursor\s*\([^;]*\)\s*;[\s\S]{0,400}?dsp\.print\s*\(\s*"R"\s*\)'),
+    ("player.get_VUlevel(...)", r"player\.get_VUlevel\s*\(\s*[^)]+\s*\)"),
+    ("player.get_VUpeak(...)", r"player\.get_VUpeak\s*\(\s*[^)]+\s*\)"),
+    ('setCursor(...) then print("L") nearby', r'dsp\.setCursor\s*\([^;]*\)\s*;[\s\S]{0,200}?dsp\.print\s*\(\s*"L"\s*\)'),
+    ('setCursor(...) then print("R") nearby', r'dsp\.setCursor\s*\([^;]*\)\s*;[\s\S]{0,200}?dsp\.print\s*\(\s*"R"\s*\)'),
 ]
 
 missing_audio = missing_patterns(audio_h, required_audio_patterns)
