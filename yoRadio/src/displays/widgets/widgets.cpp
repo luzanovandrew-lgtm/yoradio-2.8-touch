@@ -8,6 +8,7 @@
 #include "../../core/config.h"
 #include "../tools/l10n.h"
 #include "../tools/psframebuffer.h"
+#include "../fonts/TinyFont5.h"
 
 /************************
       FILL WIDGET
@@ -441,14 +442,19 @@ void VuWidget::_draw(){
     dsp.setAddrWindow(_config.left, _config.top, _bands.width * 2 + _bands.space, _bands.height);
     dsp.writePixels((uint16_t*)_canvas->getBuffer(), (_bands.width * 2 + _bands.space)*_bands.height);
     dsp.endWrite();
-    const int16_t gapCenterX = _config.left + _bands.width + (_bands.space / 2);
-    const int16_t labelTop = _config.top + (_bands.height > 8 ? (_bands.height - 8) / 2 : 0);
+    const int16_t gapLeft = _config.left + _bands.width;
+    const int16_t gapCenterX = gapLeft + (_bands.space / 2);
+    const int16_t labelTop = _config.top + (_bands.height > 5 ? (_bands.height - 5) / 2 : 0);
+    dsp.setClipping({static_cast<uint16_t>(gapLeft), _config.top, _bands.space, _bands.height});
+    dsp.setFont(&TinyFont5);
     dsp.setTextSize(1);
     dsp.setTextColor(_vuframecolor, _bgcolor);
-    dsp.setCursor(gapCenterX - 6, labelTop);
+    dsp.setCursor(gapCenterX - 5, labelTop);
     dsp.print("L");
     dsp.setCursor(gapCenterX + 1, labelTop);
     dsp.print("R");
+    dsp.clearClipping();
+    dsp.setFont();
   }else{
     _canvas->fillRect(0, 0, _bands.width, measL, _bgcolor);
     _canvas->fillRect(_bands.width + _bands.space, 0, _bands.width, measR, _bgcolor);
