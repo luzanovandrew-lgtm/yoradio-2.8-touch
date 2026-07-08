@@ -382,10 +382,13 @@ void VuWidget::_draw(){
   static uint16_t measL, measR;
   uint16_t bandColor;
   uint16_t dimension = _config.align?_bands.width:_bands.height;
-  uint16_t vulevel = player.get_VUlevel(dimension);
-  
-  uint8_t L = (vulevel >> 8) & 0xFF;
-  uint8_t R = vulevel & 0xFF;
+  uint16_t live = player.get_VUlevel(dimension);
+  uint16_t peak = player.get_VUpeak(dimension);
+
+  uint8_t L = (live >> 8) & 0xFF;
+  uint8_t R = live & 0xFF;
+  uint8_t peakL = (peak >> 8) & 0xFF;
+  uint8_t peakR = peak & 0xFF;
   
   bool played = player.isRunning();
   if(played){
@@ -430,10 +433,22 @@ void VuWidget::_draw(){
   if(_config.align){
     _canvas->fillRect(0, 0, measL, _bands.height, _bgcolor);
     _canvas->fillRect(_bands.width * 2 + _bands.space - measR, 0, measR, _bands.height, _bgcolor);
+    const uint16_t leftPeakX = min<uint16_t>(_bands.width - 1, peakL);
+    const uint16_t rightPeakX = min<uint16_t>(_bands.width - 1, peakR);
+    _canvas->drawFastVLine(leftPeakX, 0, _bands.height, _vuframecolor);
+    _canvas->drawFastVLine(_bands.width + _bands.space + (_bands.width - 1 - rightPeakX), 0, _bands.height, _vuframecolor);
     dsp.startWrite();
     dsp.setAddrWindow(_config.left, _config.top, _bands.width * 2 + _bands.space, _bands.height);
     dsp.writePixels((uint16_t*)_canvas->getBuffer(), (_bands.width * 2 + _bands.space)*_bands.height);
     dsp.endWrite();
+    const int16_t gapCenterX = _config.left + _bands.width + (_bands.space / 2);
+    const int16_t labelTop = _config.top + (_bands.height > 8 ? (_bands.height - 8) / 2 : 0);
+    dsp.setTextSize(1);
+    dsp.setTextColor(_vuframecolor, _bgcolor);
+    dsp.setCursor(gapCenterX - 6, labelTop);
+    dsp.print("L");
+    dsp.setCursor(gapCenterX + 1, labelTop);
+    dsp.print("R");
   }else{
     _canvas->fillRect(0, 0, _bands.width, measL, _bgcolor);
     _canvas->fillRect(_bands.width + _bands.space, 0, _bands.width, measR, _bgcolor);
