@@ -42,6 +42,8 @@ struct VUComputeState {
     uint8_t cnt3 = 0;
     uint8_t cnt4 = 0;
     bool frameReady = false;
+    uint16_t leftPeakWindow = 0;
+    uint16_t rightPeakWindow = 0;
     uint32_t leftHoldSamples = 0;
     uint32_t rightHoldSamples = 0;
     uint32_t leftReleaseSamples = 0;
@@ -60,11 +62,17 @@ uint32_t samplesForMs(uint32_t sampleRate, uint16_t ms) {
     return static_cast<uint32_t>((scaled + 999) / 1000);
 }
 
-void updateFusionPeak(uint16_t level, uint16_t& peak, uint8_t& holdFrames,
+uint16_t vuSampleLevel(int16_t sample) {
+    const int32_t shifted = sample >> 7;
+    const uint32_t magnitude = shifted < 0 ? static_cast<uint32_t>(-shifted) : static_cast<uint32_t>(shifted);
+    return magnitude > 255 ? 255 : static_cast<uint16_t>(magnitude);
+}
+
+void updateFusionPeak(uint16_t triggerLevel, uint16_t floorLevel, uint16_t& peak, uint8_t& holdFrames,
                       uint32_t& holdSamples, uint32_t& releaseSamples,
                       uint32_t holdDurationSamples, uint32_t releaseStepSamples) {
-    if(level >= peak) {
-        peak = level;
+    if(triggerLevel >= peak) {
+        peak = triggerLevel;
         holdSamples = holdDurationSamples;
         releaseSamples = 0;
     } else if(holdSamples > 0) {
@@ -73,11 +81,11 @@ void updateFusionPeak(uint16_t level, uint16_t& peak, uint8_t& holdFrames,
         releaseSamples++;
         if(releaseSamples >= releaseStepSamples) {
             releaseSamples = 0;
-            if(peak > level) peak--;
+            if(peak > floorLevel) peak--;
         }
-        if(peak < level) peak = level;
     }
 
+    if(peak < floorLevel) peak = floorLevel;
     holdFrames = holdSamples > 0 ? 1 : 0;
 }
 }
@@ -2390,6 +2398,10 @@ uint32_t Audio::stopSong() {
     }
     memset(m_outBuff, 0, sizeof(m_outBuff));     //Clear OutputBuffer
     i2s_zero_dma_buffer((i2s_port_t) m_i2s_num);
+    vuLeft = 0; vuRight = 0;
+    vuLeftPeak = 0; vuRightPeak = 0;
+    vuLeftHold = 0; vuRightHold = 0;
+    s_vuState.reset();
     return pos;
 }
 //---------------------------------------------------------------------------------------------------------------------
@@ -2509,6 +2521,8 @@ bool Audio::playChunk() {
 void Audio::_computeVUlevel(int16_t sample[2]) {
   if(!config.store.vumeter) return;
   VUComputeState& state = s_vuState;
+  const uint16_t liveLeft = vuSampleLevel(sample[LEFTCHANNEL]);
+  const uint16_t liveRight = vuSampleLevel(sample[RIGHTCHANNEL]);
 
   auto avg = [&](uint8_t* sampArr) { // lambda, inner function, compute the average of 8 samples
     uint16_t av = 0;
@@ -2527,6 +2541,8 @@ void Audio::_computeVUlevel(int16_t sample[2]) {
   if(state.cnt0 == 64) {
     state.cnt0 = 0;
     state.cnt1++;
+    state.leftPeakWindow = 0;
+    state.rightPeakWindow = 0;
   }
   if(state.cnt1 == 8) {
     state.cnt1 = 0;
@@ -2543,9 +2559,12 @@ void Audio::_computeVUlevel(int16_t sample[2]) {
   }
   if(state.cnt4 == 8) { state.cnt4 = 0; }
 
+  if(liveLeft > state.leftPeakWindow) state.leftPeakWindow = liveLeft;
+  if(liveRight > state.rightPeakWindow) state.rightPeakWindow = liveRight;
+
   if(!state.cnt0) { // store every 64th sample in the array[0]
-    state.sampleArray[LEFTCHANNEL][0][state.cnt1] = abs(sample[LEFTCHANNEL] >> 7);
-    state.sampleArray[RIGHTCHANNEL][0][state.cnt1] = abs(sample[RIGHTCHANNEL] >> 7);
+    state.sampleArray[LEFTCHANNEL][0][state.cnt1] = static_cast<uint8_t>(liveLeft);
+    state.sampleArray[RIGHTCHANNEL][0][state.cnt1] = static_cast<uint8_t>(liveRight);
   }
   if(!state.cnt1) { // store argest from 64 * 8 samples in the array[1]
     state.sampleArray[LEFTCHANNEL][1][state.cnt2] = largest(state.sampleArray[LEFTCHANNEL][0]);
@@ -2576,10 +2595,10 @@ void Audio::_computeVUlevel(int16_t sample[2]) {
   const uint32_t releaseSamples = samplesForMs(sampleRate, 5);
   const uint32_t releaseStepSamples = releaseSamples ? releaseSamples : 1;
 
-  updateFusionPeak(vuLeft, vuLeftPeak, vuLeftHold,
+  updateFusionPeak(state.leftPeakWindow, vuLeft, vuLeftPeak, vuLeftHold,
                    state.leftHoldSamples, state.leftReleaseSamples,
                    holdDurationSamples, releaseStepSamples);
-  updateFusionPeak(vuRight, vuRightPeak, vuRightHold,
+  updateFusionPeak(state.rightPeakWindow, vuRight, vuRightPeak, vuRightHold,
                    state.rightHoldSamples, state.rightReleaseSamples,
                    holdDurationSamples, releaseStepSamples);
 
