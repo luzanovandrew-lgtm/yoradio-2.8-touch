@@ -17,13 +17,10 @@ def strip_comments(source: str) -> str:
 
 def extract_vu_widget_region(source: str) -> str:
     start_match = re.search(r"void\s+VuWidget::init\s*\(", source)
-    if start_match is None:
+    end_match = re.search(r"/\*+\s*[\r\n]+\s*NUM\s*&\s*CLOCK\s*[\r\n]+\s*\*+/", source, flags=re.DOTALL)
+    if start_match is None or end_match is None or end_match.start() <= start_match.start():
         raise SystemExit("Unable to isolate VuWidget implementation region in widgets.cpp")
-    region_source = source[start_match.start():]
-    end_match = re.search(r"^\s*#else\b.*$", region_source, flags=re.MULTILINE)
-    if end_match is None:
-        raise SystemExit("Unable to isolate VuWidget implementation region in widgets.cpp")
-    return region_source[:end_match.start()]
+    return source[start_match.start():end_match.start()]
 
 
 def missing_patterns(source: str, patterns: list[tuple[str, str]]) -> list[str]:
@@ -35,23 +32,25 @@ def missing_patterns(source: str, patterns: list[tuple[str, str]]) -> list[str]:
 
 
 audio_h = strip_comments(read_source("src", "audioI2S", "AudioEx.h"))
-widgets_cpp = strip_comments(read_source("src", "displays", "widgets", "widgets.cpp"))
-vu_widget_region = extract_vu_widget_region(widgets_cpp)
+widgets_cpp = read_source("src", "displays", "widgets", "widgets.cpp")
+vu_widget_region = strip_comments(extract_vu_widget_region(widgets_cpp))
 
 required_audio_patterns = [
-    ("uint16_t vuLeft, vuRight;", r"uint16_t\s+vuLeft\s*,\s*vuRight\s*;"),
-    ("uint16_t vuLeftPeak, vuRightPeak;", r"uint16_t\s+vuLeftPeak\s*,\s*vuRightPeak\s*;"),
-    ("uint8_t vuLeftHold, vuRightHold;", r"uint8_t\s+vuLeftHold\s*,\s*vuRightHold\s*;"),
-    ("uint16_t get_VUlevel(uint16_t dimension);", r"uint16_t\s+get_VUlevel\s*\(\s*uint16_t\s+dimension\s*\)\s*;"),
-    ("uint16_t get_VUpeak(uint16_t dimension);", r"uint16_t\s+get_VUpeak\s*\(\s*uint16_t\s+dimension\s*\)\s*;"),
+    ("vuLeft", r"\bvuLeft\b"),
+    ("vuRight", r"\bvuRight\b"),
+    ("vuLeftPeak", r"\bvuLeftPeak\b"),
+    ("vuRightPeak", r"\bvuRightPeak\b"),
+    ("vuLeftHold", r"\bvuLeftHold\b"),
+    ("vuRightHold", r"\bvuRightHold\b"),
+    ("get_VUlevel(uint16_t ...)", r"uint16_t\s+get_VUlevel\s*\(\s*uint16_t\s+\w+\s*\)\s*;"),
+    ("get_VUpeak(uint16_t ...)", r"uint16_t\s+get_VUpeak\s*\(\s*uint16_t\s+\w+\s*\)\s*;"),
 ]
 
 required_widget_patterns = [
     ("player.get_VUlevel(dimension)", r"player\.get_VUlevel\s*\(\s*dimension\s*\)"),
     ("player.get_VUpeak(dimension)", r"player\.get_VUpeak\s*\(\s*dimension\s*\)"),
-    ("dsp.setCursor(", r"dsp\.setCursor\s*\("),
-    ('"L"', r'"L"'),
-    ('"R"', r'"R"'),
+    ('dsp.setCursor(...) ... dsp.print("L")', r'dsp\.setCursor\s*\([\s\S]*?dsp\.print\s*\(\s*"L"\s*\)'),
+    ('dsp.setCursor(...) ... dsp.print("R")', r'dsp\.setCursor\s*\([\s\S]*?dsp\.print\s*\(\s*"R"\s*\)'),
 ]
 
 missing_audio = missing_patterns(audio_h, required_audio_patterns)
