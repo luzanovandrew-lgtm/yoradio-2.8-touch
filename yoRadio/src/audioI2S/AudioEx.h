@@ -215,6 +215,7 @@ public:
     void     setVUmeter() {};
     void     getVUlevel() {};
     uint16_t get_VUlevel(uint16_t dimension);
+    uint16_t get_VUpeak(uint16_t dimension);
     
     bool     eofHeader;
     esp_err_t i2s_mclk_pin_select(const uint8_t pin);
@@ -586,6 +587,8 @@ private:
     uint8_t         m_packetBuff[m_tsPacketSize];
     int16_t         m_pesDataLength = 0;
     uint16_t  vuLeft, vuRight;
+    uint16_t  vuLeftPeak, vuRightPeak;
+    uint8_t   vuLeftHold, vuRightHold;
 };
 
 //----------------------------------------------------------------------------------------------------------------------
