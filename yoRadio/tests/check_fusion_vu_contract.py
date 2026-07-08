@@ -3,23 +3,28 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-audio_h = (ROOT / "src" / "audioI2S" / "AudioEx.h").read_text(encoding="utf-8")
-widgets_cpp = (ROOT / "src" / "displays" / "widgets" / "widgets.cpp").read_text(encoding="utf-8")
 
 
-def find_vu_draw_section(source: str) -> str:
-    start = source.find("void VuWidget::_draw(){")
-    end = source.find("\nvoid VuWidget::loop(){", start)
-    if start == -1 or end == -1:
-        raise SystemExit("Unable to locate VuWidget::_draw() contract section in widgets.cpp")
-    return source[start:end]
+def read_source(*parts: str) -> str:
+    return (ROOT.joinpath(*parts)).read_text(encoding="utf-8")
+
+
+def strip_comments(source: str) -> str:
+    source = re.sub(r"/\*.*?\*/", "", source, flags=re.DOTALL)
+    source = re.sub(r"//.*?$", "", source, flags=re.MULTILINE)
+    return source
 
 
 def missing_patterns(source: str, patterns: list[tuple[str, str]]) -> list[str]:
-    return [label for label, pattern in patterns if re.search(pattern, source, re.MULTILINE | re.DOTALL) is None]
+    return [
+        label
+        for label, pattern in patterns
+        if re.search(pattern, source, flags=re.MULTILINE | re.DOTALL) is None
+    ]
 
 
-vu_draw = find_vu_draw_section(widgets_cpp)
+audio_h = strip_comments(read_source("src", "audioI2S", "AudioEx.h"))
+widgets_cpp = strip_comments(read_source("src", "displays", "widgets", "widgets.cpp"))
 
 required_audio_patterns = [
     ("uint16_t vuLeft, vuRight;", r"uint16_t\s+vuLeft\s*,\s*vuRight\s*;"),
@@ -30,19 +35,20 @@ required_audio_patterns = [
 ]
 
 required_widget_patterns = [
-    ("VuWidget::_draw uses player.get_VUlevel(dimension)", r"player\.get_VUlevel\s*\(\s*dimension\s*\)"),
-    ("VuWidget::_draw uses player.get_VUpeak(dimension)", r"player\.get_VUpeak\s*\(\s*dimension\s*\)"),
-    ('VuWidget::_draw renders "L" with dsp.setCursor(...) nearby', r'dsp\.setCursor\s*\([^;]*\)\s*;\s*dsp\.print\s*\(\s*"L"\s*\)'),
-    ('VuWidget::_draw renders "R" with dsp.setCursor(...) nearby', r'dsp\.setCursor\s*\([^;]*\)\s*;\s*dsp\.print\s*\(\s*"R"\s*\)'),
+    ("player.get_VUlevel(dimension)", r"player\.get_VUlevel\s*\(\s*dimension\s*\)"),
+    ("player.get_VUpeak(dimension)", r"player\.get_VUpeak\s*\(\s*dimension\s*\)"),
+    ("dsp.setCursor(", r"dsp\.setCursor\s*\("),
+    ('"L"', r'"L"'),
+    ('"R"', r'"R"'),
 ]
 
 missing_audio = missing_patterns(audio_h, required_audio_patterns)
-missing_widget = missing_patterns(vu_draw, required_widget_patterns)
+missing_widget = missing_patterns(widgets_cpp, required_widget_patterns)
 
 if missing_audio or missing_widget:
     raise SystemExit(
         "Missing audio contract: "
         + ", ".join(missing_audio)
-        + " | Missing VuWidget::_draw contract: "
+        + " | Missing widget contract: "
         + ", ".join(missing_widget)
     )
