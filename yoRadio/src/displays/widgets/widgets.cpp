@@ -366,12 +366,117 @@ void VuWidget::init(WidgetConfig wconf, VUBandsConfig bands, uint16_t vumaxcolor
   _vumincolor = vumincolor;
   _vuframecolor = vuframecolor;
   _bands = bands;
+#if DSP_MODEL==DSP_ILI9341 && defined(ILI9341_PORTRAIT_LAYOUT) && ILI9341_PORTRAIT_LAYOUT
+  _canvas = new Canvas(_bands.width, _bands.height * 2 + _bands.space);
+#else
   _canvas = new Canvas(_bands.width * 2 + _bands.space, _bands.height);
+#endif
 }
 
 
 void VuWidget::_draw(){
   if(!_active || _locked) return;
+#if DSP_MODEL==DSP_ILI9341 && defined(ILI9341_PORTRAIT_LAYOUT) && ILI9341_PORTRAIT_LAYOUT
+  static uint16_t measL = 0;
+  static uint16_t measR = 0;
+  static uint16_t peakL = 0;
+  static uint16_t peakR = 0;
+  static uint8_t peakHoldL = 0;
+  static uint8_t peakHoldR = 0;
+  static uint8_t peakReleaseDivider = 0;
+  static bool initialized = false;
+  const uint16_t labelLeft = 0;
+  const uint16_t labelWidth = 12;
+  const uint16_t meterLeft = labelLeft + labelWidth + 1;
+  const uint16_t meterRight = 0;
+  const uint16_t dimension = _bands.width - meterLeft - meterRight;
+  const uint16_t rowTopL = 0;
+  const uint16_t rowTopR = rowTopL + _bands.height + _bands.space;
+  const uint16_t canvasHeight = _bands.height * 2 + _bands.space;
+  const uint16_t levels = player.get_VUlevel(dimension);
+  const uint16_t levelL = (levels >> 8) & 0xFF;
+  const uint16_t levelR = levels & 0xFF;
+
+  if(!initialized){
+    measL = 0;
+    measR = 0;
+    initialized = true;
+  }
+
+  if(player.isRunning()){
+    const uint16_t rawL = dimension - min<uint16_t>(dimension, levelL);
+    const uint16_t rawR = dimension - min<uint16_t>(dimension, levelR);
+    const uint16_t targetL = min<uint16_t>(dimension, (rawL * 9) >> 3);
+    const uint16_t targetR = min<uint16_t>(dimension, (rawR * 9) >> 3);
+
+    measL = targetL > measL ? (measL + targetL * 3) >> 2
+                            : (measL > _bands.fadespeed ? measL - _bands.fadespeed : 0);
+    measR = targetR > measR ? (measR + targetR * 3) >> 2
+                            : (measR > _bands.fadespeed ? measR - _bands.fadespeed : 0);
+  }else{
+    measL = measL > _bands.fadespeed ? measL - _bands.fadespeed : 0;
+    measR = measR > _bands.fadespeed ? measR - _bands.fadespeed : 0;
+  }
+
+  if(measL >= peakL){
+    peakL = measL;
+    peakHoldL = 10;
+  }else if(peakHoldL > 0){
+    peakHoldL--;
+  }
+  if(measR >= peakR){
+    peakR = measR;
+    peakHoldR = 10;
+  }else if(peakHoldR > 0){
+    peakHoldR--;
+  }
+  if(++peakReleaseDivider >= 3){
+    peakReleaseDivider = 0;
+    if(peakHoldL == 0 && peakL > 0) peakL--;
+    if(peakHoldR == 0 && peakR > 0) peakR--;
+  }
+
+  _canvas->fillRect(0, 0, _bands.width, canvasHeight, _bgcolor);
+  _canvas->fillRect(labelLeft, rowTopL, labelWidth, _bands.height, _vuframecolor);
+  _canvas->fillRect(labelLeft, rowTopR, labelWidth, _bands.height, _vuframecolor);
+  _canvas->setFont();
+  _canvas->setTextSize(1);
+  _canvas->setTextColor(_bgcolor, _vuframecolor);
+  _canvas->setCursor(labelLeft + 3, rowTopL + 1);
+  _canvas->print("L");
+  _canvas->setCursor(labelLeft + 3, rowTopR + 1);
+  _canvas->print("R");
+
+  const uint16_t activeL = min<uint16_t>(dimension, measL);
+  const uint16_t activeR = min<uint16_t>(dimension, measR);
+  for(uint16_t band = 0; band < _bands.perheight; ++band){
+    const uint16_t bandLeft = (band * dimension) / _bands.perheight;
+    const uint16_t bandRight = ((band + 1) * dimension) / _bands.perheight;
+    const uint16_t bandWidth = bandRight > bandLeft + 1 ? bandRight - bandLeft - 1 : 1;
+    uint16_t color = band < (_bands.perheight * 2) / 3 ? _vumaxcolor : _vumidcolor;
+    if(bandLeft < activeL)
+      _canvas->fillRect(meterLeft + bandLeft, rowTopL, bandWidth, _bands.height, color);
+    if(bandLeft < activeR)
+      _canvas->fillRect(meterLeft + bandLeft, rowTopR, bandWidth, _bands.height, color);
+  }
+
+  if(player.isRunning()){
+    if(peakL > 0){
+      const uint16_t x = meterLeft + min<uint16_t>(dimension - 1, peakL - 1);
+      _canvas->fillRect(max<uint16_t>(meterLeft, x - 1), rowTopL, 2, _bands.height, _vuframecolor);
+    }
+    if(peakR > 0){
+      const uint16_t x = meterLeft + min<uint16_t>(dimension - 1, peakR - 1);
+      _canvas->fillRect(max<uint16_t>(meterLeft, x - 1), rowTopR, 2, _bands.height, _vuframecolor);
+    }
+  }
+
+  dsp.startWrite();
+  dsp.setAddrWindow(_config.left, _config.top, _bands.width, canvasHeight);
+  dsp.writePixels((uint16_t*)_canvas->getBuffer(), _bands.width * canvasHeight);
+  dsp.endWrite();
+  return;
+#else
 #if !defined(USE_NEXTION) && I2S_DOUT==255
 /*  static uint8_t cc = 0;
   cc++;
@@ -475,6 +580,7 @@ void VuWidget::_draw(){
     dsp.writePixels((uint16_t*)_canvas->getBuffer(), (_bands.width * 2 + _bands.space)*_bands.height);
     dsp.endWrite();
   }
+#endif
 }
 
 void VuWidget::loop(){
@@ -482,7 +588,11 @@ void VuWidget::loop(){
 }
 
 void VuWidget::_clear(){
+#if DSP_MODEL==DSP_ILI9341 && defined(ILI9341_PORTRAIT_LAYOUT) && ILI9341_PORTRAIT_LAYOUT
+  dsp.fillRect(_config.left, _config.top, _bands.width, _bands.height * 2 + _bands.space, _bgcolor);
+#else
   dsp.fillRect(_config.left, _config.top, _bands.width * 2 + _bands.space, _bands.height, _bgcolor);
+#endif
 }
 #else // DSP_LCD
 VuWidget::~VuWidget() { }

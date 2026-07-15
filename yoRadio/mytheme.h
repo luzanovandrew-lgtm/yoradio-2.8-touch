@@ -10,10 +10,10 @@
 #define COLOR_SNG_TITLE_1          0,  16,  16
 #define COLOR_SNG_TITLE_2          0,  44,  44
 #define COLOR_WEATHER              0,  60,  60
-#define COLOR_VU_MAX               0, 158, 158
-#define COLOR_VU_MID               0, 118, 118
+#define COLOR_VU_MAX               0, 170, 170
+#define COLOR_VU_MID               0, 135, 135
 #define COLOR_VU_MIN               0,  74,  74
-#define COLOR_VU_FRAME             0, 207, 207
+#define COLOR_VU_FRAME             0,  22,  22
 #define COLOR_CLOCK                0,  22,  22
 #define COLOR_CLOCK_BG             0, 195, 195
 #define COLOR_SECONDS              0,  44,  44
