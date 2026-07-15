@@ -406,6 +406,9 @@ The connection tables are located here https://github.com/e2002/yoradio#connecti
 #ifndef DEFAULT_INVERTDISPLAY
   #define DEFAULT_INVERTDISPLAY false
 #endif
+#ifndef DEFAULT_FLIPTOUCH
+  #define DEFAULT_FLIPTOUCH false
+#endif
 #ifndef EXT_WEATHER
   #define EXT_WEATHER       true   // Extended weather
 #endif

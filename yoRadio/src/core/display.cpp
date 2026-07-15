@@ -220,11 +220,17 @@ void Display::_buildPager(){
   pages[PG_PLAYER]->addWidget(_meta);
   pages[PG_PLAYER]->addWidget(_title1);
   if(_title2) pages[PG_PLAYER]->addWidget(_title2);
-  if(_titleline) pages[PG_PLAYER]->addWidget(_titleline);
-  if(_weather) pages[PG_PLAYER]->addWidget(_weather);
+  #if !(defined(ILI9341_PORTRAIT_LAYOUT) && ILI9341_PORTRAIT_LAYOUT && DSP_MODEL==DSP_ILI9341)
+    if(_titleline) pages[PG_PLAYER]->addWidget(_titleline);
+  #endif
+  #if !(defined(ILI9341_PORTRAIT_LAYOUT) && ILI9341_PORTRAIT_LAYOUT && DSP_MODEL==DSP_ILI9341)
+    if(_weather) pages[PG_PLAYER]->addWidget(_weather);
+  #endif
   #if BITRATE_FULL
-    _fullbitrate = new BitrateWidget(fullbitrateConf, config.theme.bitrate, config.theme.background);
-    pages[PG_PLAYER]->addWidget( _fullbitrate);
+    #if !(defined(ILI9341_PORTRAIT_LAYOUT) && ILI9341_PORTRAIT_LAYOUT && DSP_MODEL==DSP_ILI9341)
+      _fullbitrate = new BitrateWidget(fullbitrateConf, config.theme.bitrate, config.theme.background);
+      pages[PG_PLAYER]->addWidget( _fullbitrate);
+    #endif
   #else
     _bitrate = new TextWidget(bitrateConf, 30, false, config.theme.bitrate, config.theme.background);
     pages[PG_PLAYER]->addWidget( _bitrate);
@@ -300,8 +306,12 @@ void Display::_start() {
   
   if(_heapbar)  _heapbar->lock(!config.store.audioinfo);
   
-  if(_weather)  _weather->lock(!config.store.showweather);
-  if(_weather && config.store.showweather)  _weather->setText(LANG::const_getWeather);
+  #if defined(ILI9341_PORTRAIT_LAYOUT) && ILI9341_PORTRAIT_LAYOUT && DSP_MODEL==DSP_ILI9341
+    if(_weather) _weather->lock(true);
+  #else
+    if(_weather)  _weather->lock(!config.store.showweather);
+    if(_weather && config.store.showweather)  _weather->setText(LANG::const_getWeather);
+  #endif
 
   if(_vuwidget) _vuwidget->lock();
   if(_rssi)     _setRSSI(WiFi.RSSI());
@@ -311,7 +321,11 @@ void Display::_start() {
   _pager->setPage( pages[PG_PLAYER]);
   _volume();
   _station();
-  _time(false);
+  #if DSP_MODEL==DSP_ILI9341 && defined(ILI9341_PORTRAIT_LAYOUT) && ILI9341_PORTRAIT_LAYOUT
+    _time(true);
+  #else
+    _time(false);
+  #endif
   _drawWeatherIcon();
   _bootStep = 2;
   pm.on_display_player();
@@ -352,6 +366,9 @@ void Display::_swichMode(displayMode_e newmode) {
     _nums->setText("");
     config.isScreensaver = false;
     _pager->setPage( pages[PG_PLAYER]);
+    #if DSP_MODEL==DSP_ILI9341 && defined(ILI9341_PORTRAIT_LAYOUT) && ILI9341_PORTRAIT_LAYOUT
+      _time(true);
+    #endif
     _drawWeatherIcon();
     config.setDspOn(config.store.dspon, false);
     pm.on_display_player();
@@ -493,19 +510,23 @@ void Display::loop() {
           break;
         }
         case SHOWWEATHER: {
-          if(_weather) _weather->lock(!config.store.showweather);
-          if(!config.store.showweather){
-            #ifndef HIDE_IP
-            if(_volip) _volip->setText(config.ipToStr(WiFi.localIP()), iptxtFmt);
-            #endif
-          }else{
-            if(_weather) _weather->setText(LANG::const_getWeather);
-          }
+          #if !(defined(ILI9341_PORTRAIT_LAYOUT) && ILI9341_PORTRAIT_LAYOUT && DSP_MODEL==DSP_ILI9341)
+            if(_weather) _weather->lock(!config.store.showweather);
+            if(!config.store.showweather){
+              #ifndef HIDE_IP
+              if(_volip) _volip->setText(config.ipToStr(WiFi.localIP()), iptxtFmt);
+              #endif
+            }else{
+              if(_weather) _weather->setText(LANG::const_getWeather);
+            }
+          #endif
           _drawWeatherIcon();
           break;
         }
         case NEWWEATHER: {
-          if(_weather && timekeeper.weatherBuf) _weather->setText(timekeeper.weatherBuf);
+          #if !(defined(ILI9341_PORTRAIT_LAYOUT) && ILI9341_PORTRAIT_LAYOUT && DSP_MODEL==DSP_ILI9341)
+            if(_weather && timekeeper.weatherBuf) _weather->setText(timekeeper.weatherBuf);
+          #endif
           _drawWeatherIcon();
           break;
         }
@@ -629,7 +650,17 @@ void Display::_time(bool redraw) {
     //_clock->moveTo({clockConf.left, ft, 0});
     _clock->moveTo({lt, ft, 0});
   }
-  _clock->draw(redraw);
+  #if DSP_MODEL==DSP_ILI9341 && defined(ILI9341_PORTRAIT_LAYOUT) && ILI9341_PORTRAIT_LAYOUT
+    if(_mode == PLAYER){
+      if(redraw) dsp.fillRoundRect(5, 183, 230, 74, 5, config.theme.background);
+      _clock->draw(redraw);
+      dsp.drawRoundRect(4, 182, 232, 76, 6, config.theme.clock);
+    } else {
+      _clock->draw(redraw);
+    }
+  #else
+    _clock->draw(redraw);
+  #endif
   /*#ifdef USE_NEXTION
     nextion.printClock(network.timeinfo);
   #endif*/
@@ -657,31 +688,117 @@ void Display::_drawWeatherIcon() {
   #if DSP_MODEL==DSP_ILI9341
     if(_mode != PLAYER) return;
 
-    const uint16_t iconTop = 112;
-    const uint16_t iconSize = 80;
-    uint16_t clockLeft = _clock ? _clock->leftPos() : dsp.width();
-    uint16_t iconCenter = clockLeft / 2 + 4;
-    int16_t iconLeft = (int16_t)iconCenter - (int16_t)(iconSize / 2);
-    if(iconLeft < 0) iconLeft = 0;
-    dsp.fillRect(0, iconTop, clockLeft, iconSize, config.theme.background);
+    #if defined(ILI9341_PORTRAIT_LAYOUT) && ILI9341_PORTRAIT_LAYOUT
+      const uint16_t iconTop = 95;
+      const uint16_t iconLeft = 12;
+      const uint16_t iconSize = 80;
+      const uint16_t blockLeft = 4;
+      const uint16_t blockTop = 94;
+      const uint16_t blockWidth = 232;
+      const uint16_t blockHeight = 82;
+      const uint16_t weatherRight = 172;
+      const uint16_t bitrateLeft = 190;
+      const uint16_t bitrateTop = 94;
+      const uint16_t bitrateSize = 46;
+      const uint16_t sideFrameLeft = 188;
+      const uint16_t sideFrameWidth = 48;
+      const uint16_t weatherFrameWidth = 182;
+      const uint16_t dateBoxTop = 142;
+      const uint16_t dateBoxHeight = 34;
+      dsp.fillRect(blockLeft, blockTop, blockWidth, blockHeight, config.theme.background);
+      dsp.fillRect(bitrateLeft, bitrateTop, bitrateSize, bitrateSize, config.theme.background);
+    #else
+      const uint16_t iconTop = 112;
+      const uint16_t iconSize = 80;
+      uint16_t clockLeft = _clock ? _clock->leftPos() : dsp.width();
+      int16_t iconLeft = (int16_t)(clockLeft / 2 + 4) - (int16_t)(iconSize / 2);
+      if(iconLeft < 0) iconLeft = 0;
+      dsp.fillRect(0, iconTop, clockLeft, iconSize, config.theme.background);
+    #endif
 
+    bool weatherReady = config.store.showweather && strlen(timekeeper.weatherIcon) > 0;
     #ifdef HAS_WEATHER_ICONS
-      if(!config.store.showweather || strlen(timekeeper.weatherIcon) == 0) return;
+      if(weatherReady){
+        const uint16_t *iconBitmap = img_03dn;
+        if(strcmp(timekeeper.weatherIcon, "01d") == 0) iconBitmap = img_01d;
+        else if(strcmp(timekeeper.weatherIcon, "01n") == 0) iconBitmap = img_01n;
+        else if(strcmp(timekeeper.weatherIcon, "02d") == 0) iconBitmap = img_02d;
+        else if(strcmp(timekeeper.weatherIcon, "02n") == 0) iconBitmap = img_02n;
+        else if(strcmp(timekeeper.weatherIcon, "03d") == 0 || strcmp(timekeeper.weatherIcon, "03n") == 0) iconBitmap = img_03dn;
+        else if(strcmp(timekeeper.weatherIcon, "04d") == 0 || strcmp(timekeeper.weatherIcon, "04n") == 0) iconBitmap = img_04dn;
+        else if(strcmp(timekeeper.weatherIcon, "09d") == 0 || strcmp(timekeeper.weatherIcon, "09n") == 0) iconBitmap = img_09dn;
+        else if(strcmp(timekeeper.weatherIcon, "10d") == 0 || strcmp(timekeeper.weatherIcon, "10n") == 0) iconBitmap = img_10dn;
+        else if(strcmp(timekeeper.weatherIcon, "11d") == 0 || strcmp(timekeeper.weatherIcon, "11n") == 0) iconBitmap = img_11dn;
+        else if(strcmp(timekeeper.weatherIcon, "13d") == 0 || strcmp(timekeeper.weatherIcon, "13n") == 0) iconBitmap = img_13dn;
+        else if(strcmp(timekeeper.weatherIcon, "50d") == 0 || strcmp(timekeeper.weatherIcon, "50n") == 0) iconBitmap = img_50dn;
 
-      const uint16_t *iconBitmap = img_03dn;
-      if(strcmp(timekeeper.weatherIcon, "01d") == 0) iconBitmap = img_01d;
-      else if(strcmp(timekeeper.weatherIcon, "01n") == 0) iconBitmap = img_01n;
-      else if(strcmp(timekeeper.weatherIcon, "02d") == 0) iconBitmap = img_02d;
-      else if(strcmp(timekeeper.weatherIcon, "02n") == 0) iconBitmap = img_02n;
-      else if(strcmp(timekeeper.weatherIcon, "03d") == 0 || strcmp(timekeeper.weatherIcon, "03n") == 0) iconBitmap = img_03dn;
-      else if(strcmp(timekeeper.weatherIcon, "04d") == 0 || strcmp(timekeeper.weatherIcon, "04n") == 0) iconBitmap = img_04dn;
-      else if(strcmp(timekeeper.weatherIcon, "09d") == 0 || strcmp(timekeeper.weatherIcon, "09n") == 0) iconBitmap = img_09dn;
-      else if(strcmp(timekeeper.weatherIcon, "10d") == 0 || strcmp(timekeeper.weatherIcon, "10n") == 0) iconBitmap = img_10dn;
-      else if(strcmp(timekeeper.weatherIcon, "11d") == 0 || strcmp(timekeeper.weatherIcon, "11n") == 0) iconBitmap = img_11dn;
-      else if(strcmp(timekeeper.weatherIcon, "13d") == 0 || strcmp(timekeeper.weatherIcon, "13n") == 0) iconBitmap = img_13dn;
-      else if(strcmp(timekeeper.weatherIcon, "50d") == 0 || strcmp(timekeeper.weatherIcon, "50n") == 0) iconBitmap = img_50dn;
+        dsp.drawRGBBitmap(iconLeft, iconTop, (uint16_t*)iconBitmap, iconSize, iconSize);
+      }
+    #endif
+    #if defined(ILI9341_PORTRAIT_LAYOUT) && ILI9341_PORTRAIT_LAYOUT
+      auto monoWidth = [](const char* txt, uint8_t size) -> uint16_t {
+        return strlen(txt) * 6 * size;
+      };
+      char dateBuf[16];
+      char yearBuf[8];
+      snprintf(dateBuf, sizeof(dateBuf), "%02d.%02d", network.timeinfo.tm_mday, network.timeinfo.tm_mon + 1);
+      snprintf(yearBuf, sizeof(yearBuf), "%d", network.timeinfo.tm_year + 1900);
+      if(weatherReady){
+        char tempBuf[8];
+        char pressBuf[12];
+        char humBuf[8];
+        snprintf(tempBuf, sizeof(tempBuf), "%+dC", timekeeper.weatherTemp);
+        snprintf(pressBuf, sizeof(pressBuf), "%dmm", timekeeper.weatherPress);
+        snprintf(humBuf, sizeof(humBuf), "%d%%", timekeeper.weatherHum);
 
-      dsp.drawRGBBitmap(iconLeft, iconTop, (uint16_t*)iconBitmap, iconSize, iconSize);
+        dsp.setFont();
+        dsp.setTextColor(0x0000, config.theme.background);
+        dsp.setTextSize(3);
+        dsp.setCursor(weatherRight - monoWidth(tempBuf, 3), 103);
+        dsp.print(tempBuf);
+        dsp.setTextColor(config.theme.div, config.theme.background);
+        dsp.setTextSize(2);
+        dsp.setCursor(weatherRight - monoWidth(pressBuf, 2), 133);
+        dsp.print(pressBuf);
+        dsp.setCursor(weatherRight - monoWidth(humBuf, 2), 153);
+        dsp.print(humBuf);
+
+      }
+      dsp.setFont();
+      dsp.setTextSize(1);
+      dsp.setTextColor(config.theme.date, config.theme.background);
+      dsp.setCursor(sideFrameLeft + (sideFrameWidth - monoWidth(dateBuf, 1)) / 2, dateBoxTop + 7);
+      dsp.print(dateBuf);
+      dsp.setCursor(sideFrameLeft + (sideFrameWidth - monoWidth(yearBuf, 1)) / 2, dateBoxTop + 19);
+      dsp.print(yearBuf);
+      if(config.station.bitrate > 0 && config.configFmt != BF_UNKNOWN){
+        const char* fmt = "";
+        switch(config.configFmt){
+          case BF_MP3: fmt = "MP3"; break;
+          case BF_AAC: fmt = "AAC"; break;
+          case BF_FLAC: fmt = "FLC"; break;
+          case BF_OGG: fmt = "OGG"; break;
+          case BF_WAV: fmt = "WAV"; break;
+          default: break;
+        }
+        char rateBuf[6];
+        snprintf(rateBuf, sizeof(rateBuf), "%d", config.station.bitrate > 999 ? 999 : config.station.bitrate);
+        const uint16_t formatTop = bitrateTop + bitrateSize / 2;
+        dsp.fillRoundRect(sideFrameLeft + 1, formatTop, sideFrameWidth - 2,
+                          bitrateTop + bitrateSize - formatTop - 1, 5, config.theme.bitrate);
+        dsp.fillRect(sideFrameLeft + 1, formatTop, sideFrameWidth - 2, 5, config.theme.bitrate);
+        dsp.setFont();
+        dsp.setTextSize(2);
+        dsp.setTextColor(config.theme.bitrate, config.theme.background);
+        dsp.setCursor(sideFrameLeft + (sideFrameWidth - strlen(rateBuf) * 12) / 2, bitrateTop + 6);
+        dsp.print(rateBuf);
+        dsp.setTextColor(config.theme.background, config.theme.bitrate);
+        dsp.setCursor(sideFrameLeft + (sideFrameWidth - strlen(fmt) * 12) / 2, bitrateTop + 28);
+        dsp.print(fmt);
+      }
+      dsp.drawRoundRect(blockLeft, blockTop, weatherFrameWidth, blockHeight, 6, config.theme.clock);
+      dsp.drawRoundRect(sideFrameLeft, bitrateTop, sideFrameWidth, bitrateSize, 6, config.theme.clock);
+      dsp.drawRoundRect(sideFrameLeft, dateBoxTop, sideFrameWidth, dateBoxHeight, 6, config.theme.clock);
     #endif
   #endif
 }

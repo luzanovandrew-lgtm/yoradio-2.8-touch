@@ -12,6 +12,9 @@ class TimeKeeper {
     volatile bool busy;
     char *weatherBuf;
     char weatherIcon[5];
+    int16_t weatherTemp;
+    uint16_t weatherPress;
+    uint8_t weatherHum;
   public:
     TimeKeeper();
     bool loop0();

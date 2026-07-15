@@ -69,6 +69,9 @@ TimeKeeper::TimeKeeper(){
   _returnPlayerTime = _doAfterTime = 0;
   weatherBuf=NULL;
   memset(weatherIcon, 0, sizeof(weatherIcon));
+  weatherTemp = 0;
+  weatherPress = 0;
+  weatherHum = 0;
   #if (DSP_MODEL!=DSP_DUMMY || defined(USE_NEXTION)) && !defined(HIDE_WEATHER)
     weatherBuf = (char *) malloc(sizeof(char) * WEATHER_STRING_L);
     memset(weatherBuf, 0, WEATHER_STRING_L);
@@ -344,6 +347,9 @@ bool _getWeather() {
         
         Serial.printf("##WEATHER###: description: %s, temp:%.1f C, pressure:%dmmHg, humidity:%d%%, wind: %d\n", desc, tempf, press, hum, (int)(wind_deg/22.5));
         strlcpy(timekeeper.weatherIcon, icon, sizeof(timekeeper.weatherIcon));
+        timekeeper.weatherTemp = static_cast<int16_t>(roundf(tempf));
+        timekeeper.weatherHum = static_cast<uint8_t>(hum);
+        timekeeper.weatherPress = static_cast<uint16_t>(press);
         snprintf(timekeeper.weatherBuf, WEATHER_STRING_L, "%+.0fC %d%% %dмм", tempf, hum, press);
         display.putRequest(NEWWEATHER);
       } else {

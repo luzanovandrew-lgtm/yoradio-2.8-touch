@@ -11,6 +11,8 @@
 #define BRIGHTNESS_PIN    45
 #define DEFAULT_INVERTDISPLAY true
 #define DEFAULT_FLIPSCREEN    true
+#define DEFAULT_FLIPTOUCH     true
+#define ILI9341_PORTRAIT_LAYOUT true
 
 #define TS_MODEL          TS_MODEL_FT6336
 #define TS_SDA            16

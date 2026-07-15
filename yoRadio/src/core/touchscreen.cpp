@@ -74,6 +74,15 @@ static bool ft6336ReadPoint(TouchPoint &point) {
 
 static TouchPoint ft6336RotatePoint(const TouchPoint &point, uint16_t width, uint16_t height, bool flipped) {
   TouchPoint out;
+#if DSP_MODEL==DSP_ILI9341 && defined(ILI9341_PORTRAIT_LAYOUT) && ILI9341_PORTRAIT_LAYOUT
+  if (flipped) {
+    out.x = width - point.x;
+    out.y = height - point.y;
+  } else {
+    out.x = point.x;
+    out.y = point.y;
+  }
+#else
   if (flipped) {
     out.x = width - point.y;
     out.y = point.x;
@@ -81,6 +90,7 @@ static TouchPoint ft6336RotatePoint(const TouchPoint &point, uint16_t width, uin
     out.x = point.y;
     out.y = height - point.x;
   }
+#endif
   return out;
 }
 #endif
@@ -220,7 +230,7 @@ void TouchScreen::loop(){
               int16_t xDelta = map(abs(touchVol - touchX), 0, _width, 0, TS_STEPS);
               display.putRequest(NEWMODE, VOL);
               if (xDelta>1) {
-                controlsEvent((touchVol - touchX)<0);
+                controlsEvent((touchVol - touchX)>0);
                 touchVol = touchX;
               }
             }
@@ -233,7 +243,7 @@ void TouchScreen::loop(){
               int16_t yDelta = map(abs(touchStation - touchY), 0, _height, 0, TS_STEPS);
               display.putRequest(NEWMODE, STATIONS);
               if (yDelta>1) {
-                controlsEvent((touchStation - touchY)>0);
+                controlsEvent((touchStation - touchY)<0);
                 touchStation = touchY;
               }
             }

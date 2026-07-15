@@ -534,7 +534,7 @@ void Config::resetSystem(const char *val, uint8_t clientId){
   }
   if (strcmp(val, "controls") == 0) {
     saveValue(&store.volsteps, (uint8_t)1, false);
-    saveValue(&store.fliptouch, false, false);
+    saveValue(&store.fliptouch, DEFAULT_FLIPTOUCH, false);
     saveValue(&store.dbgtouch, false, false);
     saveValue(&store.skipPlaylistUpDown, false);
     setEncAcceleration(200);
@@ -572,7 +572,7 @@ void Config::setDefaults() {
   store.flipscreen=DEFAULT_FLIPSCREEN;
   store.invertdisplay=DEFAULT_INVERTDISPLAY;
   store.numplaylist=false;
-  store.fliptouch=false;
+  store.fliptouch=DEFAULT_FLIPTOUCH;
   store.dbgtouch=false;
   store.dspon=true;
   store.brightness=100;

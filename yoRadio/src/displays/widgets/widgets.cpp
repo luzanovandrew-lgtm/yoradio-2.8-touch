@@ -383,8 +383,14 @@ void VuWidget::_draw(){
   static uint16_t measL, measR;
   uint16_t bandColor;
   uint16_t dimension = _config.align?_bands.width:_bands.height;
-  uint16_t live = player.get_VUlevel(dimension);
-  uint16_t peak = player.get_VUpeak(dimension);
+  const bool compactMeter = _config.align && _bands.space >= 32;
+  const uint8_t labelBandHeight = 0;
+  const uint8_t meterTop = labelBandHeight;
+  const uint8_t meterHeight = _bands.height - labelBandHeight;
+  const uint16_t peakZone = compactMeter ? 12 : 0;
+  const uint16_t liveWidth = compactMeter ? (_bands.width - peakZone) : _bands.width;
+  uint16_t live = player.get_VUlevel(liveWidth);
+  uint16_t peak = player.get_VUpeak(compactMeter ? peakZone : _bands.width);
 
   uint8_t L = (live >> 8) & 0xFF;
   uint8_t R = live & 0xFF;
@@ -393,20 +399,24 @@ void VuWidget::_draw(){
   
   bool played = player.isRunning();
   if(played){
-    measL=(L>=measL)?measL + _bands.fadespeed:L;
-    measR=(R>=measR)?measR + _bands.fadespeed:R;
+    if(L < measL) measL = (measL + L) >> 1;
+    else measL = min<uint16_t>(liveWidth, measL + _bands.fadespeed);
+    if(R < measR) measR = (measR + R) >> 1;
+    else measR = min<uint16_t>(liveWidth, measR + _bands.fadespeed);
   }else{
-    if(measL<dimension) measL += _bands.fadespeed;
-    if(measR<dimension) measR += _bands.fadespeed;
+    if(measL<liveWidth) measL += _bands.fadespeed;
+    if(measR<liveWidth) measR += _bands.fadespeed;
   }
-  if(measL>dimension) measL=dimension;
-  if(measR>dimension) measR=dimension;
-  uint8_t h=(dimension/_bands.perheight)-_bands.vspace;
+  if(measL>liveWidth) measL=liveWidth;
+  if(measR>liveWidth) measR=liveWidth;
+  const uint16_t meterSpan = compactMeter ? liveWidth : dimension;
+  const uint16_t meterStep = meterSpan / _bands.perheight;
+  uint8_t h=(meterSpan/_bands.perheight)-_bands.vspace;
   _canvas->fillRect(0,0,_bands.width * 2 + _bands.space,_bands.height, _bgcolor);
-  for(int i=0; i<dimension; i++){
-    if(i%(dimension/_bands.perheight)==0){
+  for(int i=0; i<meterSpan; i++){
+    if(i%meterStep==0){
       if(_config.align){
-        uint8_t bandIndex = i / (_bands.width / _bands.perheight);
+        uint8_t bandIndex = i / meterStep;
         uint8_t bandCount = _bands.perheight;
         if (bandIndex >= bandCount) bandIndex = bandCount - 1;
         uint8_t leftBandIndex = bandCount - 1 - bandIndex;
@@ -416,8 +426,8 @@ void VuWidget::_draw(){
         if (leftBandIndex >= bandCount - 3) leftBandColor = _vumaxcolor;
         if (bandIndex < bandCount / 2) rightBandColor = _vumincolor;
         if (bandIndex >= bandCount - 3) rightBandColor = _vumaxcolor;
-        _canvas->fillRect(i, 0, h, _bands.height, leftBandColor);
-        _canvas->fillRect(i + _bands.width + _bands.space, 0, h, _bands.height, rightBandColor);
+        _canvas->fillRect(peakZone + i, meterTop, h, meterHeight, leftBandColor);
+        _canvas->fillRect(_bands.width + _bands.space + i, meterTop, h, meterHeight, rightBandColor);
       }else{
         uint8_t bandIndex = i / (_bands.height / _bands.perheight);
         uint8_t bandCount = _bands.perheight;
@@ -432,29 +442,31 @@ void VuWidget::_draw(){
     }
   }
   if(_config.align){
-    _canvas->fillRect(0, 0, measL, _bands.height, _bgcolor);
-    _canvas->fillRect(_bands.width * 2 + _bands.space - measR, 0, measR, _bands.height, _bgcolor);
-    const uint16_t leftPeakX = min<uint16_t>(_bands.width - 1, peakL);
-    const uint16_t rightPeakX = min<uint16_t>(_bands.width - 1, peakR);
+    _canvas->fillRect(peakZone, meterTop, measL, meterHeight, _bgcolor);
+    _canvas->fillRect(_bands.width + _bands.space + liveWidth - measR, meterTop, measR, meterHeight, _bgcolor);
+    const uint16_t leftPeakX = compactMeter ? min<uint16_t>(peakZone - 1, peakL) : min<uint16_t>(_bands.width - 1, peakL);
+    const uint16_t rightPeakCanvasX = compactMeter
+      ? (_bands.width * 2 + _bands.space - 1 - min<uint16_t>(peakZone - 1, peakR))
+      : (_bands.width + _bands.space + (_bands.width - 1 - min<uint16_t>(_bands.width - 1, peakR)));
     _canvas->drawFastVLine(leftPeakX, 0, _bands.height, _vuframecolor);
-    _canvas->drawFastVLine(_bands.width + _bands.space + (_bands.width - 1 - rightPeakX), 0, _bands.height, _vuframecolor);
+    if(leftPeakX + 1 < peakZone) _canvas->drawFastVLine(leftPeakX + 1, 0, _bands.height, _vuframecolor);
+    _canvas->drawFastVLine(rightPeakCanvasX, 0, _bands.height, _vuframecolor);
+    if(compactMeter && rightPeakCanvasX > (_bands.width * 2 + _bands.space - peakZone)) _canvas->drawFastVLine(rightPeakCanvasX - 1, 0, _bands.height, _vuframecolor);
     dsp.startWrite();
     dsp.setAddrWindow(_config.left, _config.top, _bands.width * 2 + _bands.space, _bands.height);
     dsp.writePixels((uint16_t*)_canvas->getBuffer(), (_bands.width * 2 + _bands.space)*_bands.height);
     dsp.endWrite();
-    const int16_t gapLeft = _config.left + _bands.width;
-    const int16_t gapCenterX = gapLeft + (_bands.space / 2);
-    const int16_t labelTop = _config.top + (_bands.height > 5 ? (_bands.height - 5) / 2 : 0);
-    dsp.setClipping({static_cast<uint16_t>(gapLeft), _config.top, _bands.space, _bands.height});
-    dsp.setFont(&TinyFont5);
+    const int16_t centerX = _config.left + _bands.width + (_bands.space / 2);
+    const int16_t labelBaseline = _config.top + _bands.height - 3;
+    dsp.setClipping({_config.left + _bands.width, _config.top, _bands.space, _bands.height});
+    dsp.setFont();
     dsp.setTextSize(1);
     dsp.setTextColor(_vuframecolor, _bgcolor);
-    dsp.setCursor(gapCenterX - 5, labelTop);
+    dsp.setCursor(centerX - 10, labelBaseline);
     dsp.print("L");
-    dsp.setCursor(gapCenterX + 1, labelTop);
+    dsp.setCursor(centerX + 4, labelBaseline);
     dsp.print("R");
     dsp.clearClipping();
-    dsp.setFont();
   }else{
     _canvas->fillRect(0, 0, _bands.width, measL, _bgcolor);
     _canvas->fillRect(_bands.width + _bands.space, 0, _bands.width, measR, _bgcolor);
@@ -615,6 +627,18 @@ void ProgressWidget::loop() {
 /**************************
       CLOCK WIDGET
  **************************/
+static inline uint16_t clockWidgetBackground(){
+  return config.theme.background;
+}
+
+static inline uint16_t clockWidgetColor(uint16_t color){
+  return color;
+}
+
+static inline uint16_t clockWidgetShadow(){
+  return config.theme.clockbg;
+}
+
 void ClockWidget::init(WidgetConfig wconf, uint16_t fgcolor, uint16_t bgcolor){
   Widget::init(wconf, fgcolor, bgcolor);
   _timeheight = _textHeight();
@@ -633,6 +657,10 @@ void ClockWidget::init(WidgetConfig wconf, uint16_t fgcolor, uint16_t bgcolor){
   #else
     _clockheight = _timeheight;
   #endif
+#if DSP_MODEL==DSP_ILI9341 && defined(ILI9341_PORTRAIT_LAYOUT) && ILI9341_PORTRAIT_LAYOUT
+  // The portrait layout renders its date in the weather block.
+  _clockheight = _timeheight;
+#endif
   _getTimeBounds();
 #ifdef PSFBUFFER
   _fb = new psFrameBuffer(dsp.width(), dsp.height());
@@ -642,7 +670,7 @@ void ClockWidget::init(WidgetConfig wconf, uint16_t fgcolor, uint16_t bgcolor){
 
 void ClockWidget::_begin(){
 #ifdef PSFBUFFER
-  _fb->begin(&dsp, _clockleft, _config.top-_timeheight, _clockwidth, _clockheight+1, config.theme.background);
+  _fb->begin(&dsp, _clockleft, _config.top-_timeheight, _clockwidth, _clockheight+1, clockWidgetBackground());
 #endif
 }
 
@@ -704,7 +732,7 @@ void ClockWidget::_printClock(bool force){
     _getTimeBounds();
     #ifndef DSP_OLED
     if(CLOCKFONT_MONO) {
-      gfx.setTextColor(config.theme.clockbg, config.theme.background);
+      gfx.setTextColor(clockWidgetShadow(), clockWidgetBackground());
       gfx.setCursor(_left(), _top());
       gfx.print("88:88");
     }
@@ -712,7 +740,7 @@ void ClockWidget::_printClock(bool force){
     if(clockInTitle)
       gfx.setTextColor(config.theme.meta, config.theme.metabg);
     else
-      gfx.setTextColor(config.theme.clock, config.theme.background);
+      gfx.setTextColor(clockWidgetColor(config.theme.clock), clockWidgetBackground());
     gfx.setCursor(_left(), _top());
     gfx.print(_timebuffer);
     if(_fullclock){
@@ -720,25 +748,27 @@ void ClockWidget::_printClock(bool force){
       bool fullClockOnScreensaver = (!config.isScreensaver || (_fb->ready() && FULL_SCR_CLOCK));
       _linesleft = _left()+_timewidth+_space;
       if(fullClockOnScreensaver){
-        gfx.drawFastVLine(_linesleft, _top()-_timeheight, _timeheight, config.theme.div);
-        gfx.drawFastHLine(_linesleft, _top()-(_timeheight)/2, CHARWIDTH * _superfont * 2 + _space, config.theme.div);
+        gfx.drawFastVLine(_linesleft, _top()-_timeheight, _timeheight, clockWidgetColor(config.theme.div));
+        gfx.drawFastHLine(_linesleft, _top()-(_timeheight)/2, CHARWIDTH * _superfont * 2 + _space, clockWidgetColor(config.theme.div));
         gfx.setFont();
         gfx.setTextSize(_superfont);
         gfx.setCursor(_linesleft+_space+1, _top()-CHARHEIGHT * _superfont);
-        gfx.setTextColor(config.theme.dow, config.theme.background);
+        gfx.setTextColor(clockWidgetColor(config.theme.dow), clockWidgetBackground());
         gfx.print(utf8Rus(LANG::dow[network.timeinfo.tm_wday], false));
-        sprintf(_tmp, "%2d %s %d", network.timeinfo.tm_mday,LANG::mnths[network.timeinfo.tm_mon], network.timeinfo.tm_year+1900);
-        #ifndef HIDE_DATE
-        strlcpy(_datebuf, utf8Rus(_tmp, true), sizeof(_datebuf));
-        uint16_t _datewidth = strlen(_datebuf) * CHARWIDTH*_dateheight;
-        gfx.setTextSize(_dateheight);
-        #if DSP_MODEL==DSP_GC9A01A
-        gfx.setCursor((dsp.width()-_datewidth)/2, _top() + _space);
-        #else
-        gfx.setCursor(_left()+_clockwidth-_datewidth, _top() + _space);
-        #endif
-        gfx.setTextColor(config.theme.date, config.theme.background);
-        gfx.print(_datebuf);
+        #if !(DSP_MODEL==DSP_ILI9341 && defined(ILI9341_PORTRAIT_LAYOUT) && ILI9341_PORTRAIT_LAYOUT)
+          sprintf(_tmp, "%2d %s %d", network.timeinfo.tm_mday,LANG::mnths[network.timeinfo.tm_mon], network.timeinfo.tm_year+1900);
+          #ifndef HIDE_DATE
+          strlcpy(_datebuf, utf8Rus(_tmp, true), sizeof(_datebuf));
+          uint16_t _datewidth = strlen(_datebuf) * CHARWIDTH*_dateheight;
+          gfx.setTextSize(_dateheight);
+          #if DSP_MODEL==DSP_GC9A01A
+          gfx.setCursor((dsp.width()-_datewidth)/2, _top() + _space);
+          #else
+          gfx.setCursor(_left()+_clockwidth-_datewidth, _top() + _space);
+          #endif
+          gfx.setTextColor(clockWidgetColor(config.theme.date), clockWidgetBackground());
+          gfx.print(_datebuf);
+          #endif
         #endif
       }
     }
@@ -755,14 +785,14 @@ void ClockWidget::_printClock(bool force){
     }else{
       gfx.setCursor(_linesleft+_space+1, _top()-_timeheight);
     }
-    gfx.setTextColor(config.theme.seconds, config.theme.background);
+    gfx.setTextColor(clockWidgetColor(config.theme.seconds), clockWidgetBackground());
     sprintf(_tmp, "%02d", network.timeinfo.tm_sec);
     gfx.print(_tmp);
   }
   gfx.setTextSize(Clock_GFXfontPtr==nullptr?TIME_SIZE:1);
   gfx.setFont(Clock_GFXfontPtr);
   #ifndef DSP_OLED
-  gfx.setTextColor(dots ? config.theme.clock : (CLOCKFONT_MONO?config.theme.clockbg:config.theme.background), config.theme.background);
+  gfx.setTextColor(dots ? clockWidgetColor(config.theme.clock) : clockWidgetBackground(), clockWidgetBackground());
   #else
   if(clockInTitle)
     gfx.setTextColor(dots ? config.theme.meta:config.theme.metabg, config.theme.metabg);
@@ -782,9 +812,9 @@ void ClockWidget::_clearClock(){
   else
 #endif
 #ifndef CLOCKFONT5x7
-  dsp.fillRect(_left(), _top()-_timeheight, _clockwidth, _clockheight+1, config.theme.background);
+  dsp.fillRect(_left(), _top()-_timeheight, _clockwidth, _clockheight+1, clockWidgetBackground());
 #else
-  dsp.fillRect(_left(), _top(), _clockwidth+1, _clockheight+1, config.theme.background);
+  dsp.fillRect(_left(), _top(), _clockwidth+1, _clockheight+1, clockWidgetBackground());
 #endif
 }
 
@@ -874,8 +904,14 @@ void BitrateWidget::_charSize(uint8_t textsize, uint8_t& width, uint16_t& height
 void BitrateWidget::_draw(){
   _clear();
   if(!_active || _format == BF_UNKNOWN || _bitrate==0) return;
-  dsp.drawRect(_config.left, _config.top, _dimension, _dimension, _fgcolor);
-  dsp.fillRect(_config.left, _config.top + _dimension/2, _dimension, _dimension/2, _fgcolor);
+  #if DSP_MODEL==DSP_ILI9341 && defined(ILI9341_PORTRAIT_LAYOUT) && ILI9341_PORTRAIT_LAYOUT
+    dsp.drawFastHLine(_config.left, _config.top, _dimension, _fgcolor);
+    dsp.drawFastVLine(_config.left, _config.top, _dimension, _fgcolor);
+    dsp.drawFastVLine(_config.left + _dimension - 1, _config.top, _dimension, _fgcolor);
+    dsp.fillRect(_config.left, _config.top + _dimension/2, _dimension, _dimension/2, _fgcolor);
+  #else
+    dsp.fillRect(_config.left, _config.top + _dimension/2, _dimension, _dimension/2, _fgcolor);
+  #endif
   dsp.setFont();
   dsp.setTextSize(_config.textsize);
   dsp.setTextColor(_fgcolor, _bgcolor);

@@ -98,8 +98,8 @@ void refreshVuTiming(VUComputeState& state, uint32_t sampleRate) {
     if(state.cachedSampleRate == sampleRate) return;
 
     state.cachedSampleRate = sampleRate;
-    state.holdDurationSamples = samplesForMs(sampleRate, 120);
-    state.releaseStepSamples = samplesForMs(sampleRate, 5);
+    state.holdDurationSamples = samplesForMs(sampleRate, 160);
+    state.releaseStepSamples = samplesForMs(sampleRate, 24);
     if(state.releaseStepSamples == 0) state.releaseStepSamples = 1;
 }
 }
@@ -2539,6 +2539,13 @@ void Audio::_computeVUlevel(int16_t sample[2]) {
   const uint16_t liveLeft = vuSampleLevel(sample[LEFTCHANNEL]);
   const uint16_t liveRight = vuSampleLevel(sample[RIGHTCHANNEL]);
 
+  if(liveLeft >= vuLeft) vuLeft = (vuLeft + liveLeft) >> 1;
+  else vuLeft = (vuLeft * 7 + liveLeft) >> 3;
+  if(liveRight >= vuRight) vuRight = (vuRight + liveRight) >> 1;
+  else vuRight = (vuRight * 7 + liveRight) >> 3;
+  if(vuLeft > config.vuThreshold) config.vuThreshold = vuLeft;
+  if(vuRight > config.vuThreshold) config.vuThreshold = vuRight;
+
   auto avg = [&](uint8_t* sampArr) { // lambda, inner function, compute the average of 8 samples
     uint16_t av = 0;
     for(int i = 0; i < 8; i++) { av += sampArr[i]; }
@@ -2595,14 +2602,6 @@ void Audio::_computeVUlevel(int16_t sample[2]) {
   }
   if(state.frameReady) {
     state.frameReady = false;
-
-    const uint16_t nextLeft = avg(state.sampleArray[LEFTCHANNEL][3]);
-    const uint16_t nextRight = avg(state.sampleArray[RIGHTCHANNEL][3]);
-
-    vuLeft = nextLeft;
-    if(vuLeft > config.vuThreshold) config.vuThreshold = vuLeft;
-    vuRight = nextRight;
-    if(vuRight > config.vuThreshold) config.vuThreshold = vuRight;
   }
 
   updateFusionPeak(state.leftPeakWindow, vuLeft, vuLeftPeak, vuLeftHold,
@@ -2611,6 +2610,8 @@ void Audio::_computeVUlevel(int16_t sample[2]) {
   updateFusionPeak(state.rightPeakWindow, vuRight, vuRightPeak, vuRightHold,
                    state.rightHoldSamples, state.rightReleaseSamples,
                    state.holdDurationSamples, state.releaseStepSamples);
+  if(vuLeftPeak > config.vuThreshold) config.vuThreshold = vuLeftPeak;
+  if(vuRightPeak > config.vuThreshold) config.vuThreshold = vuRightPeak;
 
   state.cnt0++;
 }
