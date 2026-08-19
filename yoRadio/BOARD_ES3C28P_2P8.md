@@ -8,10 +8,10 @@ This project tree contains a custom profile for the `2.8" LCD Display ESP32-S3 2
 - Arduino core: `esp32` 3.x (required by ESP32-audioI2S 3.4.7)
 - PSRAM: `OPI PSRAM` (required by ESP32-audioI2S 3.4.7)
 - LCD controller: `ILI9341V`
-- Visible layout in yoRadio: `320x240`
+- Visible layout in yoRadio: portrait `240x320`
 - Touch controller: `FT6336G`
 - Storage: onboard `SD_MMC` slot
-- Current external audio pinout in this branch:
+- I2S pinout for the onboard ES8311 or an external I2S DAC:
   - `BCLK -> GPIO43`
   - `LRC/WS -> GPIO44`
   - `DOUT -> GPIO21`
@@ -56,9 +56,10 @@ The currently preferred `myoptions.h` leaves the encoder disabled, but keeps the
 
 ## Files that define this board
 
-- Board pin configuration: [myoptions.h](F:/My/YoRadio/2.8%20touch/yoradio/yoRadio/myoptions.h)
-- Theme palette: [mytheme.h](F:/My/YoRadio/2.8%20touch/yoradio/yoRadio/mytheme.h)
-- Custom display layout: [displayILI9341conf_custom.h](F:/My/YoRadio/2.8%20touch/yoradio/yoRadio/src/displays/conf/displayILI9341conf_custom.h)
+- Board pin configuration: [myoptions.h](myoptions.h)
+- Theme palette: [mytheme.h](mytheme.h)
+- Custom display layout: [displayILI9341conf_custom.h](src/displays/conf/displayILI9341conf_custom.h)
+- Arduino IDE, audio and flashing guide: [ARDUINO_IDE_FLASHING_ES3C28P.md](ARDUINO_IDE_FLASHING_ES3C28P.md)
 
 ## `myoptions.h` notes
 
@@ -71,7 +72,7 @@ This board profile currently assumes:
 - default flip enabled
 - FT6336 touch enabled
 - SD card through built-in `SD_MMC`
-- external I2S DAC pins on `43/44/21`
+- onboard ES8311 (when `USE_ES8311` is enabled) or an external I2S DAC on `43/44/21`
 - encoder disabled by default, but ready to restore from commented lines
 
 If you want to switch back to another audio path, update `I2S_*` defines in `myoptions.h`.
