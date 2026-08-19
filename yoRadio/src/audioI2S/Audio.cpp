@@ -3611,7 +3611,13 @@ void Audio::playAudioData(){
 
     if(InBuff.bufferFilled() < InBuff.getMaxBlockSize()) return; // guard
 
-    int bytesDecoded = sendBytes(InBuff.getReadPtr(), InBuff.getMaxBlockSize());
+    int bytesDecoded = 0;
+    if(m_controlCounter != OGG_OKAY && (m_codec == CODEC_OGG || m_codec == CODEC_OGG_FLAC)){
+        bytesDecoded = read_OGG_Header(InBuff.getReadPtr(), InBuff.getMaxBlockSize());
+    }
+    else{
+        bytesDecoded = sendBytes(InBuff.getReadPtr(), InBuff.getMaxBlockSize());
+    }
 
     if(bytesDecoded < 0) {  // no syncword found or decode error, try next chunk
         log_i("err bytesDecoded %i", bytesDecoded);
@@ -3896,10 +3902,8 @@ bool Audio:: initializeDecoder(){
             InBuff.changeMaxBlockSize(m_frameSizeWav);
             break;
         case CODEC_OGG:
-            m_codec = CODEC_OGG;
-            AUDIO_INFO("ogg not supported");
-            AUDIO_ERROR("ogg not supported");
-            goto exit;
+            // The OGG header determines whether this is the supported Ogg-FLAC format.
+            // FLAC buffers are allocated after STREAMINFO has been parsed.
             break;
         default:
             goto exit;
