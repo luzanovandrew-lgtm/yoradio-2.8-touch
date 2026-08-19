@@ -5,6 +5,8 @@ This project tree contains a custom profile for the `2.8" LCD Display ESP32-S3 2
 ## Hardware summary
 
 - MCU: `ESP32-S3`
+- Arduino core: `esp32` 3.x (required by ESP32-audioI2S 3.4.7)
+- PSRAM: `OPI PSRAM` (required by ESP32-audioI2S 3.4.7)
 - LCD controller: `ILI9341V`
 - Visible layout in yoRadio: `320x240`
 - Touch controller: `FT6336G`

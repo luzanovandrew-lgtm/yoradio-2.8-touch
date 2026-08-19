@@ -83,7 +83,7 @@ https://raw.githubusercontent.com/espressif/arduino-esp32/gh-pages/package_esp32
 - `Flash Mode` -> `QIO 80MHz`
 - `Flash Size` -> `4MB (32Mb)`
 - `Partition Scheme` -> `Huge APP (3MB No OTA/1MB SPIFFS)`
-- `PSRAM` -> `Disabled`
+- `PSRAM` -> `OPI PSRAM`
 - `Arduino Runs On` -> `Core 1`
 - `Events Run On` -> `Core 1`
 - `Upload Speed` -> `921600`
@@ -241,7 +241,7 @@ https://raw.githubusercontent.com/espressif/arduino-esp32/gh-pages/package_esp32
 
 - в `Tools` точно выбрана `Huge APP`
 - `Flash Size` стоит `4MB`
-- `PSRAM` стоит `Disabled`
+- `PSRAM` стоит `OPI PSRAM`
 - в [myoptions.h](F:/My/YoRadio/2.8%20touch/yoradio/yoRadio/myoptions.h) осталось:
   - `DSP_MODEL DSP_ILI9341`
   - `DSP_SPIPINS 12, 13, 11`
@@ -279,7 +279,7 @@ https://raw.githubusercontent.com/espressif/arduino-esp32/gh-pages/package_esp32
 2. Ставишь `ESP32S3 Dev Module`
 3. Ставишь `Huge APP`
 4. Ставишь `Flash Size 4MB`
-5. Ставишь `PSRAM Disabled`
+5. Ставишь `PSRAM OPI PSRAM`
 6. Нажимаешь `Verify`
 7. Нажимаешь `Upload`
 8. При чистой прошивке потом обязательно шьёшь `SPIFFS`

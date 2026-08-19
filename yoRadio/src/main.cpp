@@ -11,6 +11,7 @@
 //#include "core/mqtt.h"
 #include "core/optionschecker.h"
 #include "core/timekeeper.h"
+#include "core/audiohandlers.h"
 #ifdef USE_NEXTION
 #include "displays/nextion.h"
 #endif
@@ -74,6 +75,9 @@ void setup() {
   if (yoradio_on_setup) yoradio_on_setup();
   pm.on_setup();
   config.init();
+  #if I2S_DOUT!=255 || I2S_INTERNAL
+    Audio::audio_info_callback = my_audio_info;
+  #endif
   display.init();
   player.init();
   network.begin();
@@ -104,7 +108,6 @@ void setup() {
   }
   pm.on_end_setup();
 }
-
 void loop() {
   timekeeper.loop1();
   telnet.loop();
@@ -119,5 +122,3 @@ void loop() {
   netserver.loop();
   #endif
 }
-
-#include "core/audiohandlers.h"

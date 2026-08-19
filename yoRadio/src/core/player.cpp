@@ -43,9 +43,12 @@ void Player::init() {
   Serial.print("##[BOOT]#\tplayer.init\t");
   playerQueue=NULL;
   _resumeFilePos = 0;
+  _audioInfoTicks = 0;
+  _bitrateUpdateTicks = 0;
   _hasError=false;
   playerQueue = xQueueCreate( 5, sizeof( playerRequestParams_t ) );
   setOutputPins(false);
+  applyVUSettings();
   delay(50);
 #ifdef MQTT_ROOT_TOPIC
   memset(burl, 0, MQTT_BURL_SIZE);
@@ -53,7 +56,10 @@ void Player::init() {
   if(MUTE_PIN!=255) pinMode(MUTE_PIN, OUTPUT);
   #if I2S_DOUT!=255
     #if !I2S_INTERNAL
-      setPinout(I2S_BCLK, I2S_LRC, I2S_DOUT, I2S_DIN, I2S_MCLK);
+      setAudioTaskCore(0);
+      settings.SPECTRUM = false;
+      setOutputSampleRate(Audio::SR_ORIGIN);
+      setPinout(I2S_BCLK, I2S_LRC, I2S_DOUT, I2S_MCLK);
     #endif
   #else
     SPI.begin();
@@ -113,7 +119,7 @@ void Player::setError(const char *e){
 
 void Player::_stop(bool alreadyStopped){
   log_i("%s called", __func__);
-  if(config.getMode()==PM_SDCARD && !alreadyStopped) config.sdResumePos = player.getFilePos();
+  if(config.getMode()==PM_SDCARD && !alreadyStopped) config.sdResumePos = player.getAudioFilePosition();
   _status = STOPPED;
   setOutputPins(false);
   if(!_hasError) config.setTitle((display.mode()==LOST || display.mode()==UPDATING)?"":LANG::const_PlStopped);
@@ -122,7 +128,6 @@ void Player::_stop(bool alreadyStopped){
   #ifdef USE_NEXTION
     nextion.bitrate(config.station.bitrate);
   #endif
-  setDefaults();
   if(!alreadyStopped) stopSong();
   netserver.requestOnChange(BITRATE, 0);
   display.putRequest(DBITRATE);
@@ -135,12 +140,14 @@ void Player::_stop(bool alreadyStopped){
 }
 
 void Player::initHeaders(const char *file) {
-  if(strlen(file)==0 || true) return; //TODO Read TAGs
-  connecttoFS(*sdman.filesystem(), file);
-  eofHeader = false;
-  while(!eofHeader) Audio::loop();
-  //netserver.requestOnChange(SDPOS, 0);
-  setDefaults();
+  (void)file; // Headers are parsed asynchronously by ESP32-audioI2S 3.x.
+}
+
+void Player::applyVUSettings() {
+  #if I2S_DOUT!=255 || I2S_INTERNAL
+    Audio::setVUSettings(config.store.vuGain, config.store.vuWindowMs, config.store.vuAttackMs,
+                         config.store.vuReleaseMs, config.store.vuPeakHoldMs, config.store.vuPeakReleaseMs);
+  #endif
 }
 void resetPlayer(){
   if(!config.store.watchdog) return;
@@ -212,6 +219,7 @@ void Player::loop() {
     }
   }
   Audio::loop();
+  _syncAudioInfo();
   if(!isRunning() && _status==PLAYING) _stop(true);
   if(_volTimer){
     if((millis()-_volTicks)>3000){
@@ -236,8 +244,8 @@ void Player::setOutputPins(bool isPlaying) {
 void Player::_play(uint16_t stationId) {
   log_i("%s called, stationId=%d", __func__, stationId);
   _hasError=false;
-  setDefaults();
   _status = STOPPED;
+  _bitrateUpdateTicks = 0;
   setOutputPins(false);
   remoteStationName = false;
   
@@ -246,7 +254,8 @@ void Player::_play(uint16_t stationId) {
   
   bool isConnected = false;
   if(config.getMode()==PM_SDCARD && SDC_CS!=255){
-    isConnected=connecttoFS(*sdman.filesystem(), config.station.url, config.sdResumePos==0?_resumeFilePos:config.sdResumePos-player.sd_min);
+    if(config.sdResumePos > 0) _resumeFilePos = config.sdResumePos;
+    isConnected=connecttoFS(*sdman.filesystem(), config.station.url);
   }else {
     config.saveValue(&config.store.play_mode, static_cast<uint8_t>(PM_WEB));
   }
@@ -349,6 +358,51 @@ uint8_t Player::volToI2S(uint8_t volume) {
   if (vol > 254) vol = 254;
   if (vol < 0) vol = 0;
   return vol;
+}
+
+void Player::_syncAudioInfo() {
+  #if I2S_DOUT!=255 || I2S_INTERNAL
+    if(!isRunning() || millis() - _audioInfoTicks < 250) return;
+    _audioInfoTicks = millis();
+
+    BitrateFormat format = BF_UNKNOWN;
+    const char* codec = Audio::getCodecname();
+    if(codec != nullptr) {
+      if(strcasecmp(codec, "MP3") == 0) format = BF_MP3;
+      else if(strcasecmp(codec, "AAC") == 0 || strcasecmp(codec, "M4A") == 0) format = BF_AAC;
+      else if(strcasecmp(codec, "FLAC") == 0) format = BF_FLAC;
+      else if(strcasecmp(codec, "OPUS") == 0 || strcasecmp(codec, "VORBIS") == 0 || strcasecmp(codec, "OGG") == 0) format = BF_OGG;
+      else if(strcasecmp(codec, "WAV") == 0) format = BF_WAV;
+    }
+
+    const uint32_t now = millis();
+    const uint32_t bitrateBps = Audio::getBitRate();
+    const uint16_t bitrateKbps = static_cast<uint16_t>(std::min<uint32_t>(999, (bitrateBps + 500) / 1000));
+    bool changed = false;
+    if(format != BF_UNKNOWN && config.configFmt != format) {
+      config.setBitrateFormat(format);
+      changed = true;
+    }
+    if(bitrateKbps > 0 && (config.station.bitrate == 0 || now - _bitrateUpdateTicks >= 5000)) {
+      _bitrateUpdateTicks = now;
+      if(config.station.bitrate != bitrateKbps) {
+        config.station.bitrate = bitrateKbps;
+        changed = true;
+      }
+    }
+    if(changed) {
+      display.putRequest(DBITRATE);
+      netserver.requestOnChange(BITRATE, 0);
+      #ifdef USE_NEXTION
+        nextion.bitrate(config.station.bitrate);
+      #endif
+    }
+  #endif
+}
+
+void Player::resumeFileIfNeeded() {
+  if(_resumeFilePos == 0) return;
+  if(setAudioFilePosition(_resumeFilePos)) _resumeFilePos = 0;
 }
 
 void Player::_loadVol(uint8_t volume) {

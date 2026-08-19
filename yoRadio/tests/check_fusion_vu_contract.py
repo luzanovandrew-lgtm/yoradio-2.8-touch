@@ -45,8 +45,11 @@ def missing_patterns(source: str, patterns: list[tuple[str, str]]) -> list[str]:
     ]
 
 
-audio_h = strip_comments(read_source("src", "audioI2S", "AudioEx.h"))
+audio_h = strip_comments(read_source("src", "audioI2S", "Audio.h"))
+audio_cpp = strip_comments(read_source("src", "audioI2S", "Audio.cpp"))
 widgets_cpp = strip_comments(read_source("src", "displays", "widgets", "widgets.cpp"))
+display_cpp = strip_comments(read_source("src", "core", "display.cpp"))
+player_cpp = strip_comments(read_source("src", "core", "player.cpp"))
 vu_draw_body = extract_function_body(
     widgets_cpp,
     r"void\s+VuWidget::_draw\s*\(\s*\)\s*\{",
@@ -54,14 +57,10 @@ vu_draw_body = extract_function_body(
 )
 
 required_audio_patterns = [
-    ("uint16_t vuLeft", r"uint16_t\b[\s\w,*]*\bvuLeft\b"),
-    ("uint16_t vuRight", r"uint16_t\b[\s\w,*]*\bvuRight\b"),
-    ("uint16_t vuLeftPeak", r"uint16_t\b[\s\w,*]*\bvuLeftPeak\b"),
-    ("uint16_t vuRightPeak", r"uint16_t\b[\s\w,*]*\bvuRightPeak\b"),
-    ("uint8_t vuLeftHold", r"uint8_t\b[\s\w,*]*\bvuLeftHold\b"),
-    ("uint8_t vuRightHold", r"uint8_t\b[\s\w,*]*\bvuRightHold\b"),
     ("uint16_t get_VUlevel(uint16_t)", r"uint16_t\s+get_VUlevel\s*\(\s*uint16_t(?:\s+\w+)?\s*\)\s*;"),
     ("uint16_t get_VUpeak(uint16_t)", r"uint16_t\s+get_VUpeak\s*\(\s*uint16_t(?:\s+\w+)?\s*\)\s*;"),
+    ("queued live VU source", r"get_VUlevel[\s\S]*?m_vu_display_frame\.left"),
+    ("display peak VU source", r"get_VUpeak[\s\S]*?m_vu_display_peak_left"),
 ]
 
 required_widget_patterns = [
@@ -69,15 +68,40 @@ required_widget_patterns = [
     ("player.get_VUpeak(...)", r"player\.get_VUpeak\s*\(\s*[^)]+\s*\)"),
     ('setCursor(...) then print("L") nearby', r'dsp\.setCursor\s*\([^;]*\)\s*;[\s\S]{0,200}?dsp\.print\s*\(\s*"L"\s*\)'),
     ('setCursor(...) then print("R") nearby', r'dsp\.setCursor\s*\([^;]*\)\s*;[\s\S]{0,200}?dsp\.print\s*\(\s*"R"\s*\)'),
+    ("peak clamped to rendered bar edge", r"renderedBarEnd\s*\(\s*active[LR]\s*\)"),
 ]
 
-missing_audio = missing_patterns(audio_h, required_audio_patterns)
+missing_audio = missing_patterns(audio_h + "\n" + audio_cpp, required_audio_patterns)
 missing_widget = missing_patterns(vu_draw_body, required_widget_patterns)
 
-if missing_audio or missing_widget:
+legacy_widget_dynamics = [
+    label
+    for label, pattern in [
+        ("local VU smoothing state", r"static\s+uint16_t\s+meas[LR]"),
+        ("legacy fade-speed dynamics", r"_bands\.fadespeed"),
+        ("legacy 9/8 VU gain", r"raw[LR]\s*\*\s*9"),
+    ]
+    if re.search(pattern, vu_draw_body)
+]
+
+task_core_errors = []
+if re.search(r"setAudioTaskCore\s*\(\s*0\s*\)", player_cpp) is None:
+    task_core_errors.append("audio task is not pinned to core 0")
+if re.search(r"#define\s+DSP_TASK_CORE_ID\s+1", display_cpp) is None:
+    task_core_errors.append("display task is not pinned to core 1")
+pager_init = display_cpp.find("_pager = new Pager()")
+display_task_start = display_cpp.find("_createDspTask()", pager_init)
+if pager_init == -1 or display_task_start == -1 or pager_init > display_task_start:
+    task_core_errors.append("display task starts before Pager initialization")
+
+if missing_audio or missing_widget or legacy_widget_dynamics or task_core_errors:
     raise SystemExit(
         "Missing audio contract: "
         + ", ".join(missing_audio)
         + " | Missing widget contract: "
         + ", ".join(missing_widget)
+        + " | Legacy widget dynamics: "
+        + ", ".join(legacy_widget_dynamics)
+        + " | Task core errors: "
+        + ", ".join(task_core_errors)
     )

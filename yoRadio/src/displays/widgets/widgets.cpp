@@ -377,14 +377,6 @@ void VuWidget::init(WidgetConfig wconf, VUBandsConfig bands, uint16_t vumaxcolor
 void VuWidget::_draw(){
   if(!_active || _locked) return;
 #if DSP_MODEL==DSP_ILI9341 && defined(ILI9341_PORTRAIT_LAYOUT) && ILI9341_PORTRAIT_LAYOUT
-  static uint16_t measL = 0;
-  static uint16_t measR = 0;
-  static uint16_t peakL = 0;
-  static uint16_t peakR = 0;
-  static uint8_t peakHoldL = 0;
-  static uint8_t peakHoldR = 0;
-  static uint8_t peakReleaseDivider = 0;
-  static bool initialized = false;
   const uint16_t labelLeft = 0;
   const uint16_t labelWidth = 12;
   const uint16_t meterLeft = labelLeft + labelWidth + 1;
@@ -394,47 +386,19 @@ void VuWidget::_draw(){
   const uint16_t rowTopR = rowTopL + _bands.height + _bands.space;
   const uint16_t canvasHeight = _bands.height * 2 + _bands.space;
   const uint16_t levels = player.get_VUlevel(dimension);
+  const uint16_t peaks = player.get_VUpeak(dimension);
   const uint16_t levelL = (levels >> 8) & 0xFF;
   const uint16_t levelR = levels & 0xFF;
-
-  if(!initialized){
-    measL = 0;
-    measR = 0;
-    initialized = true;
-  }
-
-  if(player.isRunning()){
-    const uint16_t rawL = dimension - min<uint16_t>(dimension, levelL);
-    const uint16_t rawR = dimension - min<uint16_t>(dimension, levelR);
-    const uint16_t targetL = min<uint16_t>(dimension, (rawL * 9) >> 3);
-    const uint16_t targetR = min<uint16_t>(dimension, (rawR * 9) >> 3);
-
-    measL = targetL > measL ? (measL + targetL * 3) >> 2
-                            : (measL > _bands.fadespeed ? measL - _bands.fadespeed : 0);
-    measR = targetR > measR ? (measR + targetR * 3) >> 2
-                            : (measR > _bands.fadespeed ? measR - _bands.fadespeed : 0);
-  }else{
-    measL = measL > _bands.fadespeed ? measL - _bands.fadespeed : 0;
-    measR = measR > _bands.fadespeed ? measR - _bands.fadespeed : 0;
-  }
-
-  if(measL >= peakL){
-    peakL = measL;
-    peakHoldL = 10;
-  }else if(peakHoldL > 0){
-    peakHoldL--;
-  }
-  if(measR >= peakR){
-    peakR = measR;
-    peakHoldR = 10;
-  }else if(peakHoldR > 0){
-    peakHoldR--;
-  }
-  if(++peakReleaseDivider >= 3){
-    peakReleaseDivider = 0;
-    if(peakHoldL == 0 && peakL > 0) peakL--;
-    if(peakHoldR == 0 && peakR > 0) peakR--;
-  }
+  const uint16_t activeL = player.isRunning() ? dimension - min<uint16_t>(dimension, levelL) : 0;
+  const uint16_t activeR = player.isRunning() ? dimension - min<uint16_t>(dimension, levelR) : 0;
+  const auto renderedBarEnd = [dimension, this](uint16_t active) {
+    if(active == 0 || _bands.perheight == 0) return static_cast<uint16_t>(0);
+    const uint16_t filledBands = min<uint16_t>(_bands.perheight,
+      (static_cast<uint32_t>(active) * _bands.perheight + dimension - 1) / dimension);
+    return static_cast<uint16_t>((static_cast<uint32_t>(filledBands) * dimension) / _bands.perheight);
+  };
+  const uint16_t peakL = max<uint16_t>(dimension - min<uint16_t>(dimension, (peaks >> 8) & 0xFF), renderedBarEnd(activeL));
+  const uint16_t peakR = max<uint16_t>(dimension - min<uint16_t>(dimension, peaks & 0xFF), renderedBarEnd(activeR));
 
   _canvas->fillRect(0, 0, _bands.width, canvasHeight, _bgcolor);
   _canvas->fillRect(labelLeft, rowTopL, labelWidth, _bands.height, _vuframecolor);
@@ -447,8 +411,6 @@ void VuWidget::_draw(){
   _canvas->setCursor(labelLeft + 3, rowTopR + 1);
   _canvas->print("R");
 
-  const uint16_t activeL = min<uint16_t>(dimension, measL);
-  const uint16_t activeR = min<uint16_t>(dimension, measR);
   for(uint16_t band = 0; band < _bands.perheight; ++band){
     const uint16_t bandLeft = (band * dimension) / _bands.perheight;
     const uint16_t bandRight = ((band + 1) * dimension) / _bands.perheight;
@@ -485,7 +447,6 @@ void VuWidget::_draw(){
     cc=0;
   }*/
 #endif
-  static uint16_t measL, measR;
   uint16_t bandColor;
   uint16_t dimension = _config.align?_bands.width:_bands.height;
   const bool compactMeter = _config.align && _bands.space >= 32;
@@ -502,18 +463,9 @@ void VuWidget::_draw(){
   uint8_t peakL = (peak >> 8) & 0xFF;
   uint8_t peakR = peak & 0xFF;
   
-  bool played = player.isRunning();
-  if(played){
-    if(L < measL) measL = (measL + L) >> 1;
-    else measL = min<uint16_t>(liveWidth, measL + _bands.fadespeed);
-    if(R < measR) measR = (measR + R) >> 1;
-    else measR = min<uint16_t>(liveWidth, measR + _bands.fadespeed);
-  }else{
-    if(measL<liveWidth) measL += _bands.fadespeed;
-    if(measR<liveWidth) measR += _bands.fadespeed;
-  }
-  if(measL>liveWidth) measL=liveWidth;
-  if(measR>liveWidth) measR=liveWidth;
+  const bool played = player.isRunning();
+  const uint16_t measL = played ? min<uint16_t>(liveWidth, L) : liveWidth;
+  const uint16_t measR = played ? min<uint16_t>(liveWidth, R) : liveWidth;
   const uint16_t meterSpan = compactMeter ? liveWidth : dimension;
   const uint16_t meterStep = meterSpan / _bands.perheight;
   uint8_t h=(meterSpan/_bands.perheight)-_bands.vspace;

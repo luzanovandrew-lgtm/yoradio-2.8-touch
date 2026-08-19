@@ -31,7 +31,7 @@ Nextion nextion;
   #define DSP_TASK_PRIORITY  2
 #endif
 #ifndef DSP_TASK_CORE_ID
-  #define DSP_TASK_CORE_ID  0
+  #define DSP_TASK_CORE_ID  1
 #endif
 #ifndef DSP_TASK_DELAY
   #define DSP_TASK_DELAY pdMS_TO_TICKS(10) // cap for 50 fps
@@ -114,10 +114,6 @@ void Display::init() {
   displayQueue=NULL;
   displayQueue = xQueueCreate( 5, sizeof( requestParams_t ) );
   while(displayQueue==NULL){;}
-  _createDspTask();
-  while(!_bootStep==0) { delay(10); }
-  //_pager.begin();
-  //_bootScreen();
   _pager = new Pager();
   _footer = new Page();
   _plwidget = new PlayListWidget();
@@ -126,6 +122,8 @@ void Display::init() {
   _meta = new ScrollWidget();
   _title1 = new ScrollWidget();
   _plcurrent = new ScrollWidget();
+  _createDspTask();
+  while(_bootStep == 0) { delay(10); }
   Serial.println("done");
 }
 
@@ -499,6 +497,7 @@ void Display::loop() {
               _fullbitrate->setBitrate(config.station.bitrate); 
               _fullbitrate->setFormat(config.configFmt); 
             } 
+            _drawBitrate();
           }
           break;
         case AUDIOINFO: if(_heapbar)  { _heapbar->lock(!config.store.audioinfo); _heapbar->setValue(player.inBufferFilled()); } break;
@@ -800,6 +799,44 @@ void Display::_drawWeatherIcon() {
       dsp.drawRoundRect(sideFrameLeft, bitrateTop, sideFrameWidth, bitrateSize, 6, config.theme.clock);
       dsp.drawRoundRect(sideFrameLeft, dateBoxTop, sideFrameWidth, dateBoxHeight, 6, config.theme.clock);
     #endif
+  #endif
+}
+
+void Display::_drawBitrate() {
+  #if DSP_MODEL==DSP_ILI9341 && defined(ILI9341_PORTRAIT_LAYOUT) && ILI9341_PORTRAIT_LAYOUT
+    if(_mode != PLAYER) return;
+    const uint16_t bitrateTop = 94;
+    const uint16_t bitrateSize = 46;
+    const uint16_t sideFrameLeft = 188;
+    const uint16_t sideFrameWidth = 48;
+    dsp.fillRect(sideFrameLeft + 1, bitrateTop + 1, sideFrameWidth - 2, bitrateSize - 2, config.theme.background);
+
+    if(config.station.bitrate > 0 && config.configFmt != BF_UNKNOWN){
+      const char* fmt = "";
+      switch(config.configFmt){
+        case BF_MP3: fmt = "MP3"; break;
+        case BF_AAC: fmt = "AAC"; break;
+        case BF_FLAC: fmt = "FLC"; break;
+        case BF_OGG: fmt = "OGG"; break;
+        case BF_WAV: fmt = "WAV"; break;
+        default: break;
+      }
+      char rateBuf[6];
+      snprintf(rateBuf, sizeof(rateBuf), "%d", config.station.bitrate > 999 ? 999 : config.station.bitrate);
+      const uint16_t formatTop = bitrateTop + bitrateSize / 2;
+      dsp.fillRoundRect(sideFrameLeft + 1, formatTop, sideFrameWidth - 2,
+                        bitrateTop + bitrateSize - formatTop - 1, 5, config.theme.bitrate);
+      dsp.fillRect(sideFrameLeft + 1, formatTop, sideFrameWidth - 2, 5, config.theme.bitrate);
+      dsp.setFont();
+      dsp.setTextSize(2);
+      dsp.setTextColor(config.theme.bitrate, config.theme.background);
+      dsp.setCursor(sideFrameLeft + (sideFrameWidth - strlen(rateBuf) * 12) / 2, bitrateTop + 6);
+      dsp.print(rateBuf);
+      dsp.setTextColor(config.theme.background, config.theme.bitrate);
+      dsp.setCursor(sideFrameLeft + (sideFrameWidth - strlen(fmt) * 12) / 2, bitrateTop + 28);
+      dsp.print(fmt);
+    }
+    dsp.drawRoundRect(sideFrameLeft, bitrateTop, sideFrameWidth, bitrateSize, 6, config.theme.clock);
   #endif
 }
 

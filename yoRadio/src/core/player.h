@@ -2,7 +2,7 @@
 #define player_h
 
 #if I2S_DOUT!=255 || I2S_INTERNAL
-  #include "../audioI2S/AudioEx.h"
+  #include "../audioI2S/Audio.h"
 #else
   #include "../audioVS1053/audioVS1053Ex.h"
 #endif
@@ -29,12 +29,15 @@ class Player: public Audio {
     uint32_t    _volTicks;   /* delayed volume save  */
     bool        _volTimer;   /* delayed volume save  */
     uint32_t    _resumeFilePos;
+    uint32_t    _audioInfoTicks;
+    uint32_t    _bitrateUpdateTicks;
     plStatus_e  _status;
     //char        _plError[PLERR_LN];
   private:
     void _stop(bool alreadyStopped = false);
     void _play(uint16_t stationId);
     void _loadVol(uint8_t volume);
+    void _syncAudioInfo();
     bool _hasError;
   public:
     bool lockOutput = true;
@@ -65,9 +68,33 @@ class Player: public Audio {
     void stepVol(bool up);
     void setVol(uint8_t volume);
     uint8_t volToI2S(uint8_t volume);
+    uint16_t get_VUlevel(uint16_t dimension) { return Audio::get_VUlevel(dimension); }
+    uint16_t get_VUpeak(uint16_t dimension) { return Audio::get_VUpeak(dimension); }
+    void applyVUSettings();
+    uint32_t getAudioFilePosition() {
+      #if I2S_DOUT!=255 || I2S_INTERNAL
+        return Audio::getAudioFilePosition();
+      #else
+        return Audio::getFilePos();
+      #endif
+    }
+    bool setAudioFilePosition(uint32_t pos) {
+      #if I2S_DOUT!=255 || I2S_INTERNAL
+        return Audio::setAudioFilePosition(pos);
+      #else
+        return Audio::setFilePos(pos);
+      #endif
+    }
     void stopInfo();
     void setOutputPins(bool isPlaying);
-    void setResumeFilePos(uint32_t pos) { _resumeFilePos = pos; }
+    void setResumeFilePos(uint32_t pos) {
+      #if I2S_DOUT!=255 || I2S_INTERNAL
+        _resumeFilePos = pos ? sd_min + pos : 0;
+      #else
+        _resumeFilePos = pos;
+      #endif
+    }
+    void resumeFileIfNeeded();
 };
 
 extern Player player;

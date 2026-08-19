@@ -30,7 +30,7 @@
   #define ESP_ARDUINO_3 1
 #endif
 
-#define CONFIG_VERSION  5
+#define CONFIG_VERSION  8
 
 enum playMode_e      : uint8_t  { PM_WEB=0, PM_SDCARD=1 };
 
@@ -103,7 +103,7 @@ struct config_t
   char      weatherlat[10];
   char      weatherlon[10];
   char      weatherkey[WEATHERKEY_LENGTH];
-  uint16_t  _reserved;
+  uint16_t  vuGain;
   uint16_t  lastSdStation;
   bool      sdsnuffle;
   uint8_t   volsteps;
@@ -135,6 +135,11 @@ struct config_t
   uint16_t  timeSyncInterval;
   uint16_t  timeSyncIntervalRTC;
   uint16_t  weatherSyncInterval;
+  uint16_t  vuWindowMs;
+  uint16_t  vuAttackMs;
+  uint16_t  vuReleaseMs;
+  uint16_t  vuPeakHoldMs;
+  uint16_t  vuPeakReleaseMs;
 };
 
 #if IR_PIN!=255

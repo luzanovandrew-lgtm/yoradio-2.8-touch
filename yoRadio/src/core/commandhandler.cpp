@@ -111,6 +111,12 @@ bool CommandHandler::exec(const char *command, const char *value, uint8_t cid) {
   if (strEquals(command, "smartstart")){ uint8_t ss = atoi(value) == 1 ? 1 : 2; if (!player.isRunning() && ss == 1) ss = 0; config.setSmartStart(ss); return true; }
   if (strEquals(command, "audioinfo")) { config.saveValue(&config.store.audioinfo, static_cast<bool>(atoi(value))); display.putRequest(AUDIOINFO); return true; }
   if (strEquals(command, "vumeter"))   { config.saveValue(&config.store.vumeter, static_cast<bool>(atoi(value))); display.putRequest(SHOWVUMETER); return true; }
+  if (strEquals(command, "vugain"))    { config.saveValue(&config.store.vuGain, static_cast<uint16_t>(constrain(atoi(value), 25, 300))); player.applyVUSettings(); return true; }
+  if (strEquals(command, "vuwindow"))  { config.saveValue(&config.store.vuWindowMs, static_cast<uint16_t>(constrain(atoi(value), 5, 50))); player.applyVUSettings(); return true; }
+  if (strEquals(command, "vuattack"))  { config.saveValue(&config.store.vuAttackMs, static_cast<uint16_t>(constrain(atoi(value), 0, 500))); player.applyVUSettings(); return true; }
+  if (strEquals(command, "vurelease")) { config.saveValue(&config.store.vuReleaseMs, static_cast<uint16_t>(constrain(atoi(value), 20, 1500))); player.applyVUSettings(); return true; }
+  if (strEquals(command, "vupeakhold")){ config.saveValue(&config.store.vuPeakHoldMs, static_cast<uint16_t>(constrain(atoi(value), 0, 1000))); player.applyVUSettings(); return true; }
+  if (strEquals(command, "vupeakrel")) { config.saveValue(&config.store.vuPeakReleaseMs, static_cast<uint16_t>(constrain(atoi(value), 100, 3000))); player.applyVUSettings(); return true; }
   if (strEquals(command, "softap"))    { config.saveValue(&config.store.softapdelay, static_cast<uint8_t>(atoi(value))); return true; }
   if (strEquals(command, "mdnsname"))  { config.saveValue(config.store.mdnsname, value, MDNS_LENGTH); return true; }
   if (strEquals(command, "rebootmdns")){

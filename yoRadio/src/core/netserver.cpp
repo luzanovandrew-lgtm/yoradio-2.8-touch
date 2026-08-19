@@ -236,10 +236,16 @@ void NetServer::processQueue(){
           return; 
           break;
         }
-      case GETSYSTEM:     sprintf (wsBuf, "{\"sst\":%d,\"aif\":%d,\"vu\":%d,\"softr\":%d,\"vut\":%d,\"mdns\":\"%s\",\"ipaddr\":\"%s\", \"abuff\": %d, \"telnet\": %d, \"watchdog\": %d }", 
+      case GETSYSTEM:     sprintf (wsBuf, "{\"sst\":%d,\"aif\":%d,\"vu\":%d,\"vug\":%u,\"vuw\":%u,\"vua\":%u,\"vur\":%u,\"vuph\":%u,\"vupr\":%u,\"softr\":%d,\"vut\":%d,\"mdns\":\"%s\",\"ipaddr\":\"%s\", \"abuff\": %d, \"telnet\": %d, \"watchdog\": %d }", 
                                   config.store.smartstart != 2, 
                                   config.store.audioinfo, 
                                   config.store.vumeter, 
+                                  config.store.vuGain,
+                                  config.store.vuWindowMs,
+                                  config.store.vuAttackMs,
+                                  config.store.vuReleaseMs,
+                                  config.store.vuPeakHoldMs,
+                                  config.store.vuPeakReleaseMs,
                                   config.store.softapdelay,
                                   config.vuThreshold,
                                   config.store.mdnsname,
@@ -293,7 +299,7 @@ void NetServer::processQueue(){
       case VOLUME:        sprintf (wsBuf, "{\"payload\":[{\"id\":\"volume\", \"value\": %d}]}", config.store.volume); telnet.printf("##CLI.VOL#: %d\n", config.store.volume); break;
       case NRSSI:         sprintf (wsBuf, "{\"payload\":[{\"id\":\"rssi\", \"value\": %d}, {\"id\":\"heap\", \"value\": %d}]}", rssi, (player.isRunning() && config.store.audioinfo)?(int)(100*player.inBufferFilled()/playerBufMax):0); /*rssi = 255;*/ break;
       case SDPOS:         sprintf (wsBuf, "{\"sdpos\": %lu,\"sdend\": %lu,\"sdtpos\": %lu,\"sdtend\": %lu}", 
-                                  player.getFilePos(), 
+                                  player.getAudioFilePosition(),
                                   player.getFileSize(), 
                                   player.getAudioCurrentTime(), 
                                   player.getAudioFileDuration()); 

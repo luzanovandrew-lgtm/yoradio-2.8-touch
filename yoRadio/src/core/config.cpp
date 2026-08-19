@@ -132,6 +132,26 @@ void Config::_setupVersion(){
       saveValue(&store.timeSyncInterval, (uint16_t)60);    //min
       saveValue(&store.timeSyncIntervalRTC, (uint16_t)24); //hours
       saveValue(&store.weatherSyncInterval, (uint16_t)30); // min
+      break;
+    case 5:
+      saveValue(&store.vuGain, (uint16_t)100);
+      break;
+    case 6:
+      saveValue(&store.vuGain, (uint16_t)100, false);
+      saveValue(&store.vuWindowMs, (uint16_t)10, false);
+      saveValue(&store.vuAttackMs, (uint16_t)160, false);
+      saveValue(&store.vuReleaseMs, (uint16_t)320, false);
+      saveValue(&store.vuPeakHoldMs, (uint16_t)120, false);
+      saveValue(&store.vuPeakReleaseMs, (uint16_t)700);
+      break;
+    case 7:
+      saveValue(&store.vuGain, (uint16_t)100, false);
+      saveValue(&store.vuWindowMs, (uint16_t)10, false);
+      saveValue(&store.vuAttackMs, (uint16_t)25, false);
+      saveValue(&store.vuReleaseMs, (uint16_t)180, false);
+      saveValue(&store.vuPeakHoldMs, (uint16_t)160, false);
+      saveValue(&store.vuPeakReleaseMs, (uint16_t)1800);
+      break;
     default:
       break;
   }
@@ -143,7 +163,7 @@ void Config::changeMode(int newmode){
 #ifdef USE_SD
   bool pir = player.isRunning();
   if(getMode()==PM_SDCARD) {
-    sdResumePos = player.getFilePos();
+    sdResumePos = player.getAudioFilePosition();
   }
   if(network.status==SOFT_AP || display.mode()==LOST){
     saveValue(&store.play_mode, static_cast<uint8_t>(PM_SDCARD));
@@ -460,7 +480,7 @@ void Config::setSDpos(uint32_t val){
       player.setResumeFilePos(val-player.sd_min);
       player.sendCommand({PR_PLAY, config.store.lastSdStation});
     }else{
-      player.setFilePos(val-player.sd_min);
+      player.setAudioFilePosition(val);
     }
   }
 }
@@ -478,6 +498,13 @@ void Config::resetSystem(const char *val, uint8_t clientId){
     saveValue(&store.smartstart, (uint8_t)2, false);
     saveValue(&store.audioinfo, false, false);
     saveValue(&store.vumeter, false, false);
+    saveValue(&store.vuGain, (uint16_t)100, false);
+    saveValue(&store.vuWindowMs, (uint16_t)10, false);
+    saveValue(&store.vuAttackMs, (uint16_t)25, false);
+    saveValue(&store.vuReleaseMs, (uint16_t)180, false);
+    saveValue(&store.vuPeakHoldMs, (uint16_t)160, false);
+    saveValue(&store.vuPeakReleaseMs, (uint16_t)1800, false);
+    player.applyVUSettings();
     saveValue(&store.softapdelay, (uint8_t)0, false);
     saveValue(&store.abuff, (uint16_t)(VS1053_CS==255?7:10), false);
     saveValue(&store.telnet, true);
@@ -583,7 +610,7 @@ void Config::setDefaults() {
   strlcpy(store.weatherlat,"55.7512", 10);
   strlcpy(store.weatherlon,"37.6184", 10);
   strlcpy(store.weatherkey,"", WEATHERKEY_LENGTH);
-  store._reserved = 0;
+  store.vuGain = 100;
   store.lastSdStation = 0;
   store.sdsnuffle = false;
   store.volsteps = 1;
@@ -615,6 +642,11 @@ void Config::setDefaults() {
   store.timeSyncInterval = 60;    //min
   store.timeSyncIntervalRTC = 24; //hour
   store.weatherSyncInterval = 30; //min
+  store.vuWindowMs = 10;
+  store.vuAttackMs = 25;
+  store.vuReleaseMs = 180;
+  store.vuPeakHoldMs = 160;
+  store.vuPeakReleaseMs = 1800;
   eepromWrite(EEPROM_START, store);
 }
 
@@ -1039,6 +1071,8 @@ void Config::bootInfo() {
   BOOTLOG("audioinfo:\t%s", store.audioinfo?"true":"false");
   BOOTLOG("smartstart:\t%d", store.smartstart);
   BOOTLOG("vumeter:\t%s", store.vumeter?"true":"false");
+  BOOTLOG("VU:\t\tgain=%d%%, window=%dms, attack=%dms, release=%dms, peak hold=%dms, peak release=%dms",
+          store.vuGain, store.vuWindowMs, store.vuAttackMs, store.vuReleaseMs, store.vuPeakHoldMs, store.vuPeakReleaseMs);
   BOOTLOG("softapdelay:\t%d", store.softapdelay);
   BOOTLOG("flipscreen:\t%s", store.flipscreen?"true":"false");
   BOOTLOG("invertdisplay:\t%s", store.invertdisplay?"true":"false");

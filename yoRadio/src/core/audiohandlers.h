@@ -5,16 +5,19 @@
 //              Audio handlers                 //
 //=============================================//
 
+void audio_bitrate(const char *info);
+
 void audio_info(const char *info) {
   if(player.lockOutput) return;
   if(config.store.audioinfo) telnet.printf("##AUDIO.INFO#: %s\n", info);
   #ifdef USE_NEXTION
     nextion.audioinfo(info);
   #endif
-  if (strstr(info, "format is aac")  != NULL) { config.setBitrateFormat(BF_AAC); display.putRequest(DBITRATE); }
-  if (strstr(info, "format is flac") != NULL) { config.setBitrateFormat(BF_FLAC); display.putRequest(DBITRATE); }
-  if (strstr(info, "format is mp3")  != NULL) { config.setBitrateFormat(BF_MP3); display.putRequest(DBITRATE); }
-  if (strstr(info, "format is wav")  != NULL) { config.setBitrateFormat(BF_WAV); display.putRequest(DBITRATE); }
+  if (strcasestr(info, "aac") != NULL) { config.setBitrateFormat(BF_AAC); display.putRequest(DBITRATE); }
+  if (strcasestr(info, "flac") != NULL) { config.setBitrateFormat(BF_FLAC); display.putRequest(DBITRATE); }
+  if (strcasestr(info, "mpeg") != NULL || strcasestr(info, "mp3") != NULL) { config.setBitrateFormat(BF_MP3); display.putRequest(DBITRATE); }
+  if (strcasestr(info, "wav") != NULL) { config.setBitrateFormat(BF_WAV); display.putRequest(DBITRATE); }
+  if (strcasestr(info, "ogg") != NULL || strcasestr(info, "vorbis") != NULL || strcasestr(info, "opus") != NULL) { config.setBitrateFormat(BF_OGG); display.putRequest(DBITRATE); }
   if (strstr(info, "skip metadata") != NULL) config.setTitle(config.station.name);
   if (strstr(info, "Account already in use") != NULL || strstr(info, "HTTP/1.0 401") != NULL) {
     player.setError(info);
@@ -25,12 +28,18 @@ void audio_info(const char *info) {
     strlcpy(b, ici + 9, 50);
     audio_bitrate(b);
   }
+  if (strstr(info, "stream ready") != NULL) player.resumeFileIfNeeded();
 }
 
 void audio_bitrate(const char *info)
 {
   if(config.store.audioinfo) telnet.printf("%s %s\n", "##AUDIO.BITRATE#:", info);
-  config.station.bitrate = atoi(info) / 1000;
+  char* end = nullptr;
+  const long bitrateBps = strtol(info, &end, 10);
+  if(end == info || bitrateBps <= 0) return;
+  const long bitrateKbps = (bitrateBps + 500) / 1000;
+  if(config.station.bitrate > 0) return;
+  config.station.bitrate = static_cast<uint16_t>(bitrateKbps > 999 ? 999 : bitrateKbps);
   display.putRequest(DBITRATE);
   #ifdef USE_NEXTION
     nextion.bitrate(config.station.bitrate);
@@ -125,5 +134,32 @@ void audio_progress(uint32_t startpos, uint32_t endpos){
   player.sd_max = endpos;
   netserver.requestOnChange(SDLEN, 0);
 }
+
+#if I2S_DOUT!=255 || I2S_INTERNAL
+void my_audio_info(Audio::msg_t message) {
+  const char *info = message.msg ? message.msg : "";
+  switch(message.e) {
+    case Audio::evt_info:           audio_info(info); break;
+    case Audio::evt_id3data:        audio_id3data(info); break;
+    case Audio::evt_eof:
+      if(player.resumeAfterUrl || config.getMode()==PM_WEB) audio_eof_stream(info);
+      else audio_eof_mp3(info);
+      break;
+    case Audio::evt_name:           audio_showstation(info); break;
+    case Audio::evt_streamtitle:    audio_showstreamtitle(info); break;
+    case Audio::evt_bitrate:        audio_bitrate(info); break;
+    case Audio::evt_icydescription:
+    case Audio::evt_icyurl:
+    case Audio::evt_icylogo:
+    case Audio::evt_genre:
+    case Audio::evt_lasthost:
+    case Audio::evt_image:
+    case Audio::evt_lyrics:
+    case Audio::evt_log:
+      if(config.store.audioinfo) telnet.printf("##AUDIO.%s#: %s\n", message.s ? message.s : "INFO", info);
+      break;
+  }
+}
+#endif
 
 #endif
